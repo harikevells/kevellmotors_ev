@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { adminAPI } from '../../api';
 
 const STATUS_STYLE = {
@@ -64,10 +65,7 @@ export default function AdminFranchiseWalletPage() {
       <AdminSidebar />
       <div style={{ flex: 1, padding: '1.5rem 2rem', overflowY: 'auto' }}>
         {/* Header */}
-        <div style={{ marginBottom: '1.75rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 .25rem' }}>Franchise Wallet</h1>
-          <p style={{ color: '#6b7280', fontSize: '.85rem', margin: 0 }}>Franchise balances and redemption request management</p>
-        </div>
+        <AdminPageHeader title="Franchise Wallets" subtitle="View balances and process commission payouts" />
 
         {/* Summary stat cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '1rem', marginBottom: '1.5rem' }}>

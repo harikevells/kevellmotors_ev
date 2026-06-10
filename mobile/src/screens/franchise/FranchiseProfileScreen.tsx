@@ -10,9 +10,12 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { FranchiseMoreStackParamList } from '../../navigation/FranchiseNavigator';
 import { franchiseApi } from '../../api/franchiseApi';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut } from 'lucide-react-native';
+import { LogOut, ShieldCheck, Users, History, Banknote, MessageSquare, ChevronRight } from 'lucide-react-native';
 import { Colors } from '../../utils/colors';
 import type { FranchiseProfile } from '../../types';
 
@@ -51,6 +54,7 @@ const Field = ({
 
 export default function FranchiseProfileScreen() {
   const { user, logout } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<FranchiseMoreStackParamList>>();
   const [profile, setProfile] = useState<FranchiseProfile | null>(null);
   const [form, setForm] = useState<FranchiseProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -171,6 +175,81 @@ export default function FranchiseProfileScreen() {
             {form.status?.toUpperCase() ?? '—'}
           </Text>
         </View>
+      </View>
+
+      {/* Partner Features */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Partner Features</Text>
+        
+        {/* Subscriptions */}
+        <TouchableOpacity
+          style={styles.menuRow}
+          onPress={() => navigation.navigate('Subscriptions')}
+        >
+          <View style={styles.menuLeft}>
+            <View style={[styles.menuIconBg, { backgroundColor: 'rgba(0,229,255,0.1)' }]}>
+              <ShieldCheck size={20} color={Colors.cyan} />
+            </View>
+            <Text style={styles.menuText}>Subscriptions & Plans</Text>
+          </View>
+          <ChevronRight size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* Customers */}
+        <TouchableOpacity
+          style={styles.menuRow}
+          onPress={() => navigation.navigate('Customers')}
+        >
+          <View style={styles.menuLeft}>
+            <View style={[styles.menuIconBg, { backgroundColor: 'rgba(26,110,247,0.1)' }]}>
+              <Users size={20} color={Colors.blue} />
+            </View>
+            <Text style={styles.menuText}>My Customers</Text>
+          </View>
+          <ChevronRight size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* Service History */}
+        <TouchableOpacity
+          style={styles.menuRow}
+          onPress={() => navigation.navigate('History')}
+        >
+          <View style={styles.menuLeft}>
+            <View style={[styles.menuIconBg, { backgroundColor: 'rgba(34,197,94,0.1)' }]}>
+              <History size={20} color={Colors.green} />
+            </View>
+            <Text style={styles.menuText}>Service History Logs</Text>
+          </View>
+          <ChevronRight size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* Revenue & Payments */}
+        <TouchableOpacity
+          style={styles.menuRow}
+          onPress={() => navigation.navigate('Payments')}
+        >
+          <View style={styles.menuLeft}>
+            <View style={[styles.menuIconBg, { backgroundColor: 'rgba(139,92,246,0.1)' }]}>
+              <Banknote size={20} color="#8b5cf6" />
+            </View>
+            <Text style={styles.menuText}>Revenue & Payments</Text>
+          </View>
+          <ChevronRight size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* Feedback & Ratings */}
+        <TouchableOpacity
+          style={[styles.menuRow, { borderBottomWidth: 0, paddingBottom: 0 }]}
+          onPress={() => navigation.navigate('Feedback')}
+        >
+          <View style={styles.menuLeft}>
+            <View style={[styles.menuIconBg, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
+              <MessageSquare size={20} color="#f59e0b" />
+            </View>
+            <Text style={styles.menuText}>Feedback & Ratings</Text>
+          </View>
+          <ChevronRight size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
       </View>
 
       {/* Basic info */}
@@ -394,4 +473,31 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239,68,68,0.08)',
   },
   logoutText: { color: Colors.red, fontWeight: '700', fontSize: 14 },
+
+  // Quick Menu Row Styles
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  menuLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
 });

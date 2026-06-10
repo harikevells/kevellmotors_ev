@@ -24,6 +24,7 @@ app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/vehicles', apiLimiter, require('./routes/vehicles'));
 app.use('/api/services', apiLimiter, require('./routes/services'));
 app.use('/api/subscriptions', apiLimiter, require('./routes/subscriptions'));
+app.use('/api/notifications', apiLimiter, require('./routes/notifications'));
 app.use('/api/parts', apiLimiter, require('./routes/parts'));
 app.use('/api/payments', apiLimiter, require('./routes/payments'));
 app.use('/api/feedback', apiLimiter, require('./routes/feedback'));

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { franchiseAPI } from '../../api';
 
 const MAPS_KEY = 'AIzaSyCjEatp-Gql5YwhrJQBByrHaA4WRpZ3VA4';
@@ -37,8 +38,7 @@ const EMPTY_FORM = {
   name: '', email: '', phone: '', owner: '',
   address: { street: '', city: '', state: '', pincode: '' },
   licenseNumber: '', gstNumber: '', capacity: 10,
-  workingHours: { open: '09:00', close: '18:00' },
-  availableDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+  schedules: [{ type: 'overall', days: ['monday','tuesday','wednesday','thursday','friday'], open: '09:00', close: '18:00', isClosed: false }],
   lat: '', lng: '',
 };
 
@@ -110,12 +110,24 @@ export default function AdminFranchisesPage() {
 
   const openEdit = (f) => {
     setEditTarget(f);
+    let initialSchedules = f.schedules || [];
+    if (initialSchedules.length === 0 && f.workingHours) {
+      initialSchedules = [{
+        type: 'overall',
+        startDate: '',
+        endDate: '',
+        days: f.availableDays || ['monday','tuesday','wednesday','thursday','friday'],
+        open: f.workingHours.open || '09:00',
+        close: f.workingHours.close || '18:00',
+        isClosed: false
+      }];
+    }
+
     setEditForm({
       name: f.name || '', email: f.email || '', phone: f.phone || '',
       licenseNumber: f.licenseNumber || '', gstNumber: f.gstNumber || '', capacity: f.capacity || 10,
       address: { street: f.address?.street || '', city: f.address?.city || '', state: f.address?.state || '', pincode: f.address?.pincode || '' },
-      workingHours: { open: f.workingHours?.open || '09:00', close: f.workingHours?.close || '18:00' },
-      availableDays: f.availableDays || ['monday','tuesday','wednesday','thursday','friday'],
+      schedules: initialSchedules,
       lat: f.location?.coordinates?.[1]?.toString() || '',
       lng: f.location?.coordinates?.[0]?.toString() || '',
     });
@@ -159,12 +171,16 @@ export default function AdminFranchisesPage() {
       <div style={{ flex: 1, padding: '1.5rem 2rem', overflowY: 'auto' }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Franchise Management</h1>
-            <p style={{ margin: '.25rem 0 0', color: '#6b7280', fontSize: '.83rem' }}>Manage all franchise partners and applications</p>
-          </div>
-          <button onClick={() => setShowCreate(true)} style={{ background: '#1a6ef7', border: 'none', borderRadius: 9, padding: '.55rem 1.25rem', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '.88rem' }}>+ Add Franchise</button>
+        <AdminPageHeader 
+          title="Service Centres" 
+          subtitle="Manage franchise locations and inventory allocations" 
+        />
+        
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+          <button onClick={() => setShowCreate(true)}
+            style={{ background: '#1a6ef7', border: 'none', borderRadius: 8, padding: '.65rem 1.25rem', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '.85rem' }}>
+            + Add Franchise
+          </button>
         </div>
 
         {/* Stat Strip */}
@@ -257,19 +273,16 @@ export default function AdminFranchisesPage() {
 
 /* ── Shared form component ── */
 function FranchiseForm({ form, setForm, onSubmit, submitting, submitLabel, onCancel, hideOwner }) {
+  const [newSchedule, setNewSchedule] = useState({ type: 'overall', startDate: '', endDate: '', days: ['monday','tuesday','wednesday','thursday','friday'], open: '09:00', close: '18:00', isClosed: false });
+  const toggleNewScheduleDay = (day) => setNewSchedule(prev => ({ ...prev, days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day] }));
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
   const setAddr = (key, val) => setForm((f) => ({ ...f, address: { ...f.address, [key]: val } }));
-  const setHrs  = (key, val) => setForm((f) => ({ ...f, workingHours: { ...f.workingHours, [key]: val } }));
-  const toggleDay = (day) => setForm((f) => ({
-    ...f,
-    availableDays: f.availableDays?.includes(day)
-      ? f.availableDays.filter((d) => d !== day)
-      : [...(f.availableDays || []), day],
-  }));
 
   const inp  = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '.55rem .85rem', color: '#e2e8f0', fontSize: '.85rem', outline: 'none', width: '100%', boxSizing: 'border-box' };
   const lbl  = { fontSize: '.73rem', color: '#6b7280', display: 'block', marginBottom: '.3rem', textTransform: 'uppercase', letterSpacing: '.5px' };
   const section = { margin: '1.25rem 0 .75rem', fontSize: '.9rem', fontWeight: 700, color: '#9ca3af' };
+  const ch = { padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)' };
+  const card = { background: '#0d0e2b', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12 };
 
   return (
     <form onSubmit={onSubmit}>
@@ -321,21 +334,96 @@ function FranchiseForm({ form, setForm, onSubmit, submitting, submitLabel, onCan
         <div><label style={lbl}>Longitude</label><input type="number" step="any" style={inp} value={form.lng} onChange={(e) => setForm((f) => ({ ...f, lng: e.target.value }))} placeholder="e.g. 78.1198" /></div>
       </div>
 
-      <div style={section}>⏰ Working Hours &amp; Availability</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '.75rem' }}>
-        <div><label style={lbl}>Opens at</label><input type="time" style={inp} value={form.workingHours?.open || '09:00'} onChange={(e) => setHrs('open', e.target.value)} /></div>
-        <div><label style={lbl}>Closes at</label><input type="time" style={inp} value={form.workingHours?.close || '18:00'} onChange={(e) => setHrs('close', e.target.value)} /></div>
-      </div>
-      <div>
-        <label style={lbl}>Available Days</label>
-        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginTop: '.25rem' }}>
-          {ALL_DAYS.map((day) => {
-            const checked = form.availableDays?.includes(day);
-            return (
-              <button key={day} type="button" onClick={() => toggleDay(day)} style={{ padding: '.3rem .65rem', borderRadius: 8, fontSize: '.78rem', fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${checked ? '#0EA5E9' : 'rgba(255,255,255,0.1)'}`, background: checked ? 'rgba(14,165,233,0.15)' : 'rgba(255,255,255,0.04)', color: checked ? '#0EA5E9' : '#6b7280', transition: 'all .15s' }}>{DAY_ABBR[day]}</button>
-            );
-          })}
+      <div style={section}>⏰ Availability Schedule Builder</div>
+      <p style={{ margin: '0 0 1rem', color: '#6b7280', fontSize: '.78rem' }}>
+        Define when this service centre is open. You can add an overall schedule, and specific overrides for dates.
+      </p>
+      
+      <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: '1.25rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <div>
+            <label style={lbl}>Schedule Type</label>
+            <select style={{ ...inp, width: 150 }} value={newSchedule.type} onChange={(e) => setNewSchedule(prev => ({ ...prev, type: e.target.value }))}>
+              <option value="overall">Overall Timing</option>
+              <option value="date_range">Date Range</option>
+              <option value="single_date">Single Date</option>
+            </select>
+          </div>
+          {newSchedule.type !== 'overall' && (
+            <div>
+              <label style={lbl}>{newSchedule.type === 'single_date' ? 'Date' : 'From Date'}</label>
+              <input type="date" style={{ ...inp, width: 'auto' }} value={newSchedule.startDate} onChange={(e) => setNewSchedule(prev => ({ ...prev, startDate: e.target.value }))} />
+            </div>
+          )}
+          {newSchedule.type === 'date_range' && (
+            <div>
+              <label style={lbl}>To Date</label>
+              <input type="date" style={{ ...inp, width: 'auto' }} value={newSchedule.endDate} onChange={(e) => setNewSchedule(prev => ({ ...prev, endDate: e.target.value }))} />
+            </div>
+          )}
         </div>
+
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={newSchedule.isClosed} onChange={(e) => setNewSchedule(prev => ({ ...prev, isClosed: e.target.checked }))} style={{ cursor: 'pointer' }} />
+            <span style={{ fontSize: '.85rem', color: '#f87171' }}>Mark as Closed (Holiday)</span>
+          </label>
+          {!newSchedule.isClosed && (
+            <>
+              <div>
+                <label style={lbl}>Opens at</label>
+                <input type="time" style={{ ...inp, width: 'auto' }} value={newSchedule.open} onChange={(e) => setNewSchedule(prev => ({ ...prev, open: e.target.value }))} />
+              </div>
+              <div>
+                <label style={lbl}>Closes at</label>
+                <input type="time" style={{ ...inp, width: 'auto' }} value={newSchedule.close} onChange={(e) => setNewSchedule(prev => ({ ...prev, close: e.target.value }))} />
+              </div>
+            </>
+          )}
+        </div>
+
+        {newSchedule.type !== 'single_date' && (
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={lbl}>Applies to Days</label>
+            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+              {ALL_DAYS.map((day) => {
+                const checked = newSchedule.days.includes(day);
+                return (
+                  <button key={day} type="button" onClick={() => toggleNewScheduleDay(day)} style={{ padding: '.25rem .5rem', borderRadius: 6, fontSize: '.75rem', fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${checked ? '#0EA5E9' : 'rgba(255,255,255,0.1)'}`, background: checked ? 'rgba(14,165,233,0.15)' : 'rgba(255,255,255,0.04)', color: checked ? '#0EA5E9' : '#6b7280', transition: 'all .15s' }}>{DAY_ABBR[day]}</button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <button type="button" onClick={() => {
+          if (newSchedule.type === 'single_date' && !newSchedule.startDate) return alert('Select a date');
+          if (newSchedule.type === 'date_range' && (!newSchedule.startDate || !newSchedule.endDate)) return alert('Select date range');
+          if (newSchedule.type !== 'single_date' && newSchedule.days.length === 0) return alert('Select at least one day');
+          if (!newSchedule.isClosed && (!newSchedule.open || !newSchedule.close)) return alert('Select open and close times');
+          
+          set('schedules', [...(form.schedules || []), newSchedule]);
+          setNewSchedule({ type: 'overall', startDate: '', endDate: '', days: ['monday','tuesday','wednesday','thursday','friday'], open: '09:00', close: '18:00', isClosed: false });
+        }} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: 7, padding: '.4rem 1rem', color: '#22c55e', fontWeight: 600, cursor: 'pointer', fontSize: '.8rem' }}>+ Add Schedule Rule</button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+        {form.schedules?.map((sch, i) => (
+          <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
+                <span style={{ background: 'rgba(255,255,255,0.1)', padding: '.15rem .4rem', borderRadius: 4, fontSize: '.65rem', textTransform: 'uppercase', fontWeight: 700, color: '#9ca3af' }}>{sch.type.replace('_', ' ')}</span>
+                {sch.type !== 'overall' && <span style={{ fontSize: '.8rem', color: '#e2e8f0', fontWeight: 600 }}>{sch.startDate} {sch.type === 'date_range' ? `to ${sch.endDate}` : ''}</span>}
+              </div>
+              <div style={{ fontSize: '.8rem', color: '#9ca3af' }}>
+                {sch.isClosed ? <span style={{ color: '#ef4444', fontWeight: 600 }}>Closed (Holiday)</span> : <span style={{ color: '#3b82f6', fontWeight: 600 }}>{sch.open} – {sch.close}</span>}
+                {sch.type !== 'single_date' && <span style={{ marginLeft: '.5rem' }}>on {(sch.days || []).map(d => DAY_ABBR[d]).join(', ')}</span>}
+              </div>
+            </div>
+            <button type="button" onClick={() => set('schedules', form.schedules.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.2rem', cursor: 'pointer' }}>×</button>
+          </div>
+        ))}
+        {(!form.schedules || form.schedules.length === 0) && <div style={{ color: '#6b7280', fontSize: '.85rem' }}>No schedule rules added. Franchise will be considered closed always.</div>}
       </div>
 
       <div style={{ display: 'flex', gap: '.75rem', marginTop: '1.75rem' }}>

@@ -12,8 +12,10 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith('audio/')) return cb(null, true);
-  const allowed = /jpeg|jpg|png|gif|pdf|doc|docx/;
+  if (file.mimetype.startsWith('audio/') || file.mimetype.startsWith('image/')) {
+    return cb(null, true);
+  }
+  const allowed = /pdf|doc|docx/;
   const extname = allowed.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowed.test(file.mimetype);
   if (extname && mimetype) {

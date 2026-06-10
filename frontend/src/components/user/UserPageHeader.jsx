@@ -1,4 +1,5 @@
 import { useAuth } from '../../context/AuthContext';
+import NotificationDropdown from '../common/NotificationDropdown';
 
 export default function UserPageHeader({ title, subtitle, actions }) {
   const { user } = useAuth();
@@ -23,7 +24,7 @@ export default function UserPageHeader({ title, subtitle, actions }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {actions}
         <button style={iconButtonStyle} type="button" aria-label="Search">🔍</button>
-        <button style={iconButtonStyle} type="button" aria-label="Notifications">🔔</button>
+        <NotificationDropdown />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
           <div style={{

@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, 
   Settings, 
@@ -10,7 +11,7 @@ import {
   Megaphone, 
   Users, 
   Store, 
-  LogOut 
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -64,9 +65,10 @@ export default function AdminSidebar() {
               borderLeft: isActive ? '3px solid #00e5ff' : '3px solid transparent',
               fontSize: '.85rem', fontWeight: isActive ? 700 : 500,
               textDecoration: 'none', transition: 'all .15s',
+              position: 'relative'
             }}>
               <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-              <span>{item.label}</span>
+              <span style={{ flex: 1 }}>{item.label}</span>
             </Link>
           );
         })}

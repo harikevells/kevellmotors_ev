@@ -355,7 +355,9 @@ const DashboardScreen: React.FC = () => {
               <Card key={sub._id} style={styles.subCard}>
                 <View style={styles.subRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.subName}>{sub.plan?.name}</Text>
+                    <Text style={styles.subName}>
+                      {typeof sub.plan === 'object' && sub.plan ? sub.plan.name : (sub.plan || 'Subscription Plan')}
+                    </Text>
                     <Text style={styles.subExpiry}>
                       Expires: {new Date(sub.endDate).toLocaleDateString('en-IN')}
                     </Text>
@@ -364,7 +366,7 @@ const DashboardScreen: React.FC = () => {
                     <Text style={styles.subBadgeText}>Active</Text>
                   </View>
                 </View>
-                {sub.plan?.features?.slice(0, 2).map((f: string, i: number) => (
+                {(typeof sub.plan === 'object' && sub.plan ? sub.plan.highlights : sub.features)?.slice(0, 2).map((f: string, i: number) => (
                   <Text key={i} style={styles.subFeature}>✓ {f}</Text>
                 ))}
               </Card>

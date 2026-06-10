@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Franchise = require('../models/Franchise');
+const Notification = require('../models/Notification');
 const { protect, authorize } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
@@ -70,7 +71,7 @@ router.get('/nearby', async (req, res, next) => {
           $maxDistance: radius * 1000, // metres
         },
       },
-    }).select('name address location rating reviewCount workingHours availableDays capacity upiId pickupDropService');
+    }).select('name address location rating reviewCount schedules capacity upiId pickupDropService');
 
     // Attach distance (metres → km) to each result
     const results = franchises.map((f) => {
@@ -113,6 +114,14 @@ router.put('/:id', protect, authorize('admin'), async (req, res, next) => {
     delete updateData.lng;
     const franchise = await Franchise.findByIdAndUpdate(req.params.id, updateData, { returnDocument: 'after', runValidators: true });
     if (!franchise) return res.status(404).json({ success: false, message: 'Franchise not found' });
+    
+    await Notification.create({
+      recipient: franchise.owner,
+      title: 'Franchise Profile Updated',
+      message: 'Your franchise details have been updated by the administrator.',
+      type: 'system'
+    });
+
     res.json({ success: true, franchise });
   } catch (err) {
     next(err);
@@ -128,6 +137,14 @@ router.put('/:id/status', protect, authorize('admin'), async (req, res, next) =>
       { new: true }
     );
     if (!franchise) return res.status(404).json({ success: false, message: 'Franchise not found' });
+
+    await Notification.create({
+      recipient: franchise.owner,
+      title: `Franchise Status Changed: ${req.body.status.toUpperCase()}`,
+      message: `Your franchise status has been changed to ${req.body.status}.`,
+      type: 'system'
+    });
+
     res.json({ success: true, franchise });
   } catch (err) {
     next(err);

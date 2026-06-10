@@ -273,7 +273,7 @@ async function ruleBasedAgent(messages, userId) {
 
   if (!franchiseId) {
     const list = franchises.map((f, i) =>
-      `${i + 1}. **${f.name}**\n   📍 ${f.address?.street}, ${f.address?.city}, ${f.address?.state}\n   ⏰ ${f.workingHours?.open || '09:00'} – ${f.workingHours?.close || '18:00'} | 🗓 ${(f.availableDays || []).map((d) => d.slice(0, 3)).join(', ')}`
+      `${i + 1}. **${f.name}**\n   📍 ${f.address?.street}, ${f.address?.city}, ${f.address?.state}`
     ).join('\n\n');
     return {
       reply: `Here are the available service centers${city ? ` near **${city}**` : ''}:\n\n${list}\n\nWhich one would you prefer? (Reply with the number)`,
@@ -296,7 +296,7 @@ async function ruleBasedAgent(messages, userId) {
     const ex3 = `${dayAfter.getDate()}/${dayAfter.getMonth() + 1}`;
 
     return {
-      reply: `When would you like to schedule the service?\n\nYou can say something like:\n• "${ex1}"\n• "${ex2}"\n• "${ex3}"\n• "Today"\n\n*Working days: ${daysStr} | Hours: ${fr?.workingHours?.open || '09:00'} – ${fr?.workingHours?.close || '18:00'}*`,
+      reply: `When would you like to schedule the service?\n\nYou can say something like:\n• "${ex1}"\n• "${ex2}"\n• "${ex3}"\n• "Today"\n\n*Working days: ${daysStr}*`,
       suggestions: ['Today', 'Tomorrow', 'Day after tomorrow', nextMon.toLocaleDateString('en-IN', { weekday: 'long' })]
     };
   }
@@ -368,7 +368,7 @@ async function executeOpenAITool(name, args, userId) {
     if (args.city) filter['address.city'] = new RegExp(args.city, 'i');
     const franchises = await Franchise.find(filter).lean();
     if (!franchises.length) return JSON.stringify({ message: `No active service centers found${args.city ? ' in ' + args.city : ''}.` });
-    return JSON.stringify(franchises.map((f) => ({ id: f._id, name: f.name, street: f.address?.street, city: f.address?.city, state: f.address?.state, phone: f.phone, workingHours: f.workingHours, availableDays: f.availableDays })));
+    return JSON.stringify(franchises.map((f) => ({ id: f._id, name: f.name, street: f.address?.street, city: f.address?.city, state: f.address?.state, phone: f.phone, schedules: f.schedules })));
   }
   if (name === 'book_service_appointment') {
     const svc = await Service.create({ vehicle: args.vehicleId, owner: userId, franchise: args.franchiseId, serviceType: args.serviceType, scheduledDate: new Date(args.scheduledDate), description: args.description || '', status: 'onboarded' });

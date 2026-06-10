@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { feedbackAPI } from '../../api';
 
 function Stars({ value = 0 }) {
@@ -57,10 +58,7 @@ export default function AdminFeedbackPage() {
       <div style={{ flex: 1, padding: '1.5rem 2rem', overflowY: 'auto' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: '1.75rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Feedback Collections</h1>
-          <p style={{ color: '#6b7280', fontSize: '.83rem', marginTop: '.25rem' }}>{feedback.length} response{feedback.length !== 1 ? 's' : ''} received</p>
-        </div>
+        <AdminPageHeader title="Feedback & Ratings" subtitle="Monitor customer satisfaction and reviews" />
 
         {feedback.length === 0 ? (
           <div style={{ ...card, padding: '3rem', textAlign: 'center', color: '#4b5563' }}>No feedback received yet</div>

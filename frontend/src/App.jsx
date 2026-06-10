@@ -22,6 +22,7 @@ import FeedPage from './pages/user/FeedPage';
 import DocumentsPage from './pages/user/DocumentsPage';
 import ProfilePage from './pages/user/ProfilePage';
 import AIAgentPage from './pages/user/AIAgentPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 // Franchise pages
 import FranchiseDashboardPage from './pages/franchise/FranchiseDashboardPage';
@@ -80,6 +81,7 @@ export default function App() {
           <Route path="/documents" element={<ProtectedRoute><Layout hideNav><DocumentsPage /></Layout></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Layout hideNav><ProfilePage /></Layout></ProtectedRoute>} />
           <Route path="/ai-agent" element={<ProtectedRoute><Layout hideNav><AIAgentPage /></Layout></ProtectedRoute>} />
+          <Route path="/notifications" element={<ProtectedRoute><Layout hideNav><NotificationsPage /></Layout></ProtectedRoute>} />
 
           {/* Franchise protected */}
           <Route path="/franchise/dashboard" element={<ProtectedRoute role="franchise"><Layout hideNav><FranchiseDashboardPage /></Layout></ProtectedRoute>} />
@@ -92,6 +94,8 @@ export default function App() {
           <Route path="/franchise/wallet"    element={<ProtectedRoute role="franchise"><Layout hideNav><FranchiseWalletPage /></Layout></ProtectedRoute>} />
           <Route path="/franchise/feedback"  element={<ProtectedRoute role="franchise"><Layout hideNav><FranchiseFeedbackPage /></Layout></ProtectedRoute>} />
           <Route path="/franchise/profile"   element={<ProtectedRoute role="franchise"><Layout hideNav><FranchiseProfilePage /></Layout></ProtectedRoute>} />
+          <Route path="/franchise/subscriptions" element={<ProtectedRoute role="franchise"><Layout hideNav><AdminSubscriptionsPage /></Layout></ProtectedRoute>} />
+          <Route path="/franchise/notifications" element={<ProtectedRoute role="franchise"><Layout hideNav><NotificationsPage /></Layout></ProtectedRoute>} />
 
           {/* Admin protected */}
           <Route path="/admin" element={<ProtectedRoute role="admin"><Layout hideNav><AdminDashboardPage /></Layout></ProtectedRoute>} />
@@ -104,6 +108,7 @@ export default function App() {
           <Route path="/admin/subscriptions" element={<ProtectedRoute role="admin"><Layout hideNav><AdminSubscriptionsPage /></Layout></ProtectedRoute>} />
           <Route path="/admin/parts" element={<ProtectedRoute role="admin"><Layout hideNav><AdminPartsPage /></Layout></ProtectedRoute>} />
           <Route path="/admin/franchise-wallet" element={<ProtectedRoute role="admin"><Layout hideNav><AdminFranchiseWalletPage /></Layout></ProtectedRoute>} />
+          <Route path="/admin/notifications" element={<ProtectedRoute role="admin"><Layout hideNav><NotificationsPage /></Layout></ProtectedRoute>} />
 
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />

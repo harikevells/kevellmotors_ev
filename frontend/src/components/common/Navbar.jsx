@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import NotificationsMenu from './NotificationsMenu';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -24,7 +25,10 @@ export default function Navbar() {
               ) : (
                 <li><Link to="/dashboard">Dashboard</Link></li>
               )}
-              <li>
+              <li style={{ display: 'flex', alignItems: 'center' }}>
+                <NotificationsMenu />
+              </li>
+              <li style={{ marginLeft: '1rem' }}>
                 <button className="btn btn-outline btn-sm" onClick={handleLogout}>
                   Logout
                 </button>

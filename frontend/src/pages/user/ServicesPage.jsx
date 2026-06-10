@@ -243,7 +243,10 @@ function VoiceQueryBox({ description, setDescription, activeFranchises, selected
 
 function FranchiseCard({ f, selected, onSelect, distanceKm }) {
   const today = ALL_DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
-  const openToday = f.availableDays?.includes(today);
+  const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+  const localDate = (new Date(Date.now() - tzOffset)).toISOString().slice(0, 10);
+  const isHoliday = f.holidays?.includes(localDate);
+  const openToday = f.availableDays?.includes(today) && !isHoliday;
   const travelMins = distanceKm != null ? Math.max(1, Math.round(distanceKm * 2)) : null; // ~30 km/h avg
   return (
     <div
@@ -391,7 +394,7 @@ export default function ServicesPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [showBook, setShowBook] = useState(false);
-  const [form, setForm] = useState({ vehicle: '', serviceType: 'general', description: '', scheduledDate: '', franchise: '', pickupRequested: false });
+  const [form, setForm] = useState({ vehicle: '', serviceType: 'general', description: '', scheduledDate: '', scheduledTime: '', franchise: '', pickupRequested: false });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [feedbackTarget, setFeedbackTarget] = useState(null);
@@ -461,6 +464,22 @@ export default function ServicesPage() {
     e.preventDefault();
     setSaving(true);
     setError('');
+
+    // Check if the scheduled date is a holiday for the selected franchise
+    if (form.franchise && form.scheduledDate) {
+      const selectedFranchise = activeFranchises.find((f) => f._id === form.franchise);
+      if (selectedFranchise && selectedFranchise.holidays?.includes(form.scheduledDate)) {
+        setError(`The selected service centre is closed on ${new Date(form.scheduledDate).toLocaleDateString('en-GB')}. Please select another date.`);
+        setSaving(false);
+        return;
+      }
+      if (!form.scheduledTime) {
+        setError('Please select a preferred time slot.');
+        setSaving(false);
+        return;
+      }
+    }
+
     try {
       if (voiceBlob) {
         const ext = voiceMimeType === 'audio/ogg' ? 'ogg' : 'webm';
@@ -477,7 +496,7 @@ export default function ServicesPage() {
       setShowBook(false);
       setVoiceBlob(null);
       setVoiceMimeType(null);
-      setForm({ vehicle: '', serviceType: 'general', description: '', scheduledDate: '', franchise: '', pickupRequested: false });
+      setForm({ vehicle: '', serviceType: 'general', description: '', scheduledDate: '', scheduledTime: '', franchise: '', pickupRequested: false });
       load();
     } catch (err) {
       setError(err.message || err.response?.data?.message || 'Failed to book service');
@@ -519,7 +538,16 @@ export default function ServicesPage() {
                     <p style={{ fontWeight: 500 }}>{selected.franchise?.name}</p>
                   </div>
                 )}
-                  <p style={{ fontWeight: 500 }}>{selected.scheduledDate ? new Date(selected.scheduledDate).toLocaleDateString() : 'Not set'}</p>
+                <div>
+                  <p className="text-muted" style={{ fontSize: '.8rem' }}>Scheduled Date</p>
+                  <p style={{ fontWeight: 500 }}>
+                    {selected.scheduledDate ? new Date(selected.scheduledDate).toLocaleDateString() : 'Not set'}
+                    {selected.scheduledTime ? ` at ${(() => {
+                      let [h, m] = selected.scheduledTime.split(':').map(Number);
+                      let ampm = h >= 12 ? 'PM' : 'AM';
+                      return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${ampm}`;
+                    })()}` : ''}
+                  </p>
                 </div>
                 {selected.pickupRequested && (
                   <div>
@@ -667,6 +695,7 @@ export default function ServicesPage() {
                 </div>
               </div>
             </div>
+          </div>
     );
   }
 
@@ -744,11 +773,136 @@ export default function ServicesPage() {
                       {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                     </select>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Preferred Date</label>
-                    <input type="date" className="form-control" value={form.scheduledDate} onChange={(e) => setForm((f) => ({ ...f, scheduledDate: e.target.value }))} />
-                  </div>
                 </div>
+
+                <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                  <label className="form-label">Preferred Date & Time *</label>
+                  {!form.franchise ? (
+                    <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px dashed rgba(255,255,255,0.1)', color: '#9ca3af', textAlign: 'center', fontSize: '.9rem' }}>
+                      Please select a Service Centre above to view available dates.
+                    </div>
+                  ) : (() => {
+                    const f = activeFranchises.find(x => x._id === form.franchise);
+                    if (!f) return null;
+                    
+                    const daysMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                    const upcomingDates = [];
+                    const getScheduleForDate = (dateStr, dayName, franchise) => {
+                      const schedules = franchise.schedules || [];
+                      if (schedules.length === 0) {
+                        // Legacy fallback
+                        if (franchise.availableDays?.includes(dayName)) {
+                           return { open: franchise.workingHours?.open || '09:00', close: franchise.workingHours?.close || '18:00', isClosed: false };
+                        }
+                        return null;
+                      }
+                      // 1. Single Date Match
+                      let match = schedules.find(s => s.type === 'single_date' && s.startDate === dateStr);
+                      if (match) return match;
+                      // 2. Date Range Match
+                      match = schedules.find(s => s.type === 'date_range' && dateStr >= s.startDate && dateStr <= s.endDate && s.days.includes(dayName));
+                      if (match) return match;
+                      // 3. Overall Match
+                      return schedules.find(s => s.type === 'overall' && s.days.includes(dayName));
+                    };
+
+                    let d = new Date();
+                    for (let i = 0; i < 30 && upcomingDates.length < 14; i++) {
+                      const dateStr = d.toLocaleDateString('en-CA');
+                      const dayName = daysMap[d.getDay()];
+                      const schedule = getScheduleForDate(dateStr, dayName, f);
+                      
+                      if (schedule && !schedule.isClosed) {
+                        upcomingDates.push({
+                          dateStr,
+                          dayShort: d.toLocaleDateString('en-US', { weekday: 'short' }),
+                          dateDisplay: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+                          open: schedule.open,
+                          close: schedule.close
+                        });
+                      }
+                      d.setDate(d.getDate() + 1);
+                    }
+
+                    return (
+                      <>
+                        <div style={{ display: 'flex', gap: '.75rem', overflowX: 'auto', paddingBottom: '.5rem', WebkitOverflowScrolling: 'touch' }}>
+                          {upcomingDates.length === 0 && <span style={{ color: '#ef4444', fontSize: '.85rem' }}>No upcoming available dates.</span>}
+                          {upcomingDates.map((dt) => (
+                            <button
+                              key={dt.dateStr}
+                              type="button"
+                              onClick={() => setForm(prev => ({ ...prev, scheduledDate: dt.dateStr, scheduledTime: '' }))}
+                              style={{
+                                flexShrink: 0,
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                width: 80, height: 80, borderRadius: 12, cursor: 'pointer',
+                                border: `2px solid ${form.scheduledDate === dt.dateStr ? '#3b82f6' : 'rgba(255,255,255,0.1)'}`,
+                                background: form.scheduledDate === dt.dateStr ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.03)',
+                                color: form.scheduledDate === dt.dateStr ? '#3b82f6' : '#9ca3af',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <span style={{ fontSize: '.8rem', textTransform: 'uppercase', fontWeight: 600, marginBottom: '.25rem', color: form.scheduledDate === dt.dateStr ? '#3b82f6' : '#6b7280' }}>{dt.dayShort}</span>
+                              <span style={{ fontSize: '1.2rem', fontWeight: 700, color: form.scheduledDate === dt.dateStr ? '#eff6ff' : '#cbd5e1' }}>{dt.dateDisplay.split(' ')[0]}</span>
+                              <span style={{ fontSize: '.75rem' }}>{dt.dateDisplay.split(' ')[1]}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {form.scheduledDate && (() => {
+                          const dt = upcomingDates.find(u => u.dateStr === form.scheduledDate);
+                          const slots = [];
+                          if (dt) {
+                            const openTime = dt.open || '09:00';
+                            const closeTime = dt.close || '18:00';
+                            
+                            let [openH, openM] = openTime.split(':').map(Number);
+                            let [closeH, closeM] = closeTime.split(':').map(Number);
+                            let current = new Date(); current.setHours(openH, openM, 0, 0);
+                            let end = new Date(); end.setHours(closeH, closeM, 0, 0);
+                            while (current < end) {
+                              let h = current.getHours(); let m = current.getMinutes();
+                              let ampm = h >= 12 ? 'PM' : 'AM'; let h12 = h % 12 || 12;
+                              let timeStr = `${h12}:${m === 0 ? '00' : m} ${ampm}`;
+                              slots.push({ value: `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`, label: timeStr });
+                              current.setHours(current.getHours() + 1);
+                            }
+                          }
+
+                          if (slots.length === 0) return (
+                            <div style={{ marginTop: '1rem', color: '#f59e0b', fontSize: '.85rem' }}>No time slots available for this date.</div>
+                          );
+
+                          return (
+                            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
+                              <label className="form-label" style={{ marginBottom: '.75rem', fontSize: '.85rem', color: '#e2e8f0' }}>Select Time Slot</label>
+                              <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+                                {slots.map((s) => (
+                                  <button
+                                    key={s.value}
+                                    type="button"
+                                    onClick={() => setForm((f) => ({ ...f, scheduledTime: s.value }))}
+                                    style={{
+                                      padding: '.5rem 1rem', borderRadius: 8, fontSize: '.85rem', fontWeight: 600, cursor: 'pointer',
+                                      border: `1px solid ${form.scheduledTime === s.value ? '#1d4ed8' : 'rgba(255,255,255,0.1)'}`,
+                                      background: form.scheduledTime === s.value ? '#1d4ed8' : 'rgba(255,255,255,0.05)',
+                                      color: form.scheduledTime === s.value ? '#fff' : '#cbd5e1',
+                                      transition: 'all .2s'
+                                    }}
+                                  >
+                                    {s.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    );
+                  })()}
+                </div>
+
                 <VoiceQueryBox
                   description={form.description}
                   setDescription={(val) => setForm(f => ({ ...f, description: val }))}
@@ -799,6 +953,16 @@ export default function ServicesPage() {
                   <p style={{ fontWeight: 600, textTransform: 'capitalize' }}>{s.serviceType} Service</p>
                   <p className="text-muted" style={{ fontSize: '.875rem' }}>{s.vehicle?.registrationNumber}</p>
                   {s.franchise && <p className="text-muted" style={{ fontSize: '.8rem' }}>{s.franchise?.name}</p>}
+                  {s.scheduledDate && (
+                    <p className="text-muted" style={{ fontSize: '.8rem', color: '#0369a1', marginTop: '.2rem' }}>
+                      📅 {new Date(s.scheduledDate).toLocaleDateString('en-GB')}
+                      {s.scheduledTime ? ` • ${(() => {
+                        let [h, m] = s.scheduledTime.split(':').map(Number);
+                        let ampm = h >= 12 ? 'PM' : 'AM';
+                        return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${ampm}`;
+                      })()}` : ''}
+                    </p>
+                  )}
                   {s.status === 'delivered' && (
                     <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginTop: '.75rem' }}>
                       {s.invoiceNumber && (

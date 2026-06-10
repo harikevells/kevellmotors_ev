@@ -11,6 +11,7 @@ export const authAPI = {
 
 export const vehicleAPI = {
   list: () => api.get('/vehicles'),
+  listForUser: (userId) => api.get(`/vehicles/user/${userId}`),
   get: (id) => api.get(`/vehicles/${id}`),
   create: (data) => api.post('/vehicles', data),
   update: (id, data) => api.put(`/vehicles/${id}`, data),
@@ -34,6 +35,8 @@ export const subscriptionAPI = {
   list: () => api.get('/subscriptions'),
   get: (id) => api.get(`/subscriptions/${id}`),
   create: (data) => api.post('/subscriptions', data),
+  activate: (id, data) => api.put(`/subscriptions/${id}/activate`, data),
+  reject: (id) => api.put(`/subscriptions/${id}/reject`),
 };
 
 export const subscriptionPlanAPI = {
@@ -46,13 +49,21 @@ export const subscriptionPlanAPI = {
 export const partsAPI = {
   list: (params) => api.get('/parts', { params }),
   get: (id) => api.get(`/parts/${id}`),
-  create: (data) => api.post('/parts', data),
-  update: (id, data) => api.put(`/parts/${id}`, data),
+  create: (data) => api.post('/parts', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  update: (id, data) => api.put(`/parts/${id}`, data, { headers: { 'Content-Type': 'multipart/form-data' } }),
   remove: (id) => api.delete(`/parts/${id}`),
   placeOrder: (data) => api.post('/parts/orders', data),
   myOrders: () => api.get('/parts/orders/mine'),
   allOrders: () => api.get('/parts/admin/orders'),
   updateOrderStatus: (id, status) => api.put(`/parts/orders/${id}/status`, { status }),
+};
+
+export const notificationsAPI = {
+  list: () => api.get('/notifications'),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllAsRead: () => api.put('/notifications/read-all'),
+  sendNotification: (data) => api.post('/notifications/send', data), // admin/franchise
 };
 
 export const paymentAPI = {

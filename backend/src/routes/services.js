@@ -58,6 +58,31 @@ router.post('/', protect, async (req, res, next) => {
       message: 'Your next service is due',
     });
 
+    const Notification = require('../models/Notification');
+    const User = require('../models/User');
+    
+    // Notify the user
+    await Notification.create({
+      recipient: req.user._id,
+      title: 'Booking Confirmed',
+      message: `Your service booking for ${new Date(service.serviceDate).toLocaleDateString()} has been received.`,
+      type: 'booking',
+      link: '/user/bookings'
+    });
+
+    // Notify all admins
+    const admins = await User.find({ role: 'admin' });
+    if (admins.length > 0) {
+      const adminNotifications = admins.map(admin => ({
+        recipient: admin._id,
+        title: 'Service Booking',
+        message: `${req.user.name} has just booked a ${service.serviceType} service.`,
+        type: 'system',
+        link: '/admin/services'
+      }));
+      await Notification.insertMany(adminNotifications);
+    }
+
     res.status(201).json({ success: true, service });
   } catch (err) {
     next(err);
@@ -90,6 +115,15 @@ router.put('/:id/status', protect, authorize('admin', 'franchise'), async (req, 
     if (status === 'delivered') service.completedDate = new Date();
     await service.save();
 
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      recipient: service.owner,
+      title: 'Service Update',
+      message: `Your vehicle service status is now: ${status.replace('_', ' ')}. ${note || ''}`,
+      type: 'system',
+      link: '/user/bookings'
+    });
+
     res.json({ success: true, service });
   } catch (err) {
     next(err);
@@ -119,6 +153,18 @@ router.put('/:id/assign', protect, authorize('admin'), async (req, res, next) =>
       { new: true }
     ).populate('franchise', 'name address');
     if (!service) return res.status(404).json({ success: false, message: 'Service not found' });
+    
+    if (franchiseId) {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        recipient: franchiseId, // Assuming franchiseId matches User ID of the franchise owner
+        title: 'New Service Assigned',
+        message: `A new vehicle service (ID: ${service._id.toString().slice(-8).toUpperCase()}) has been assigned to your franchise.`,
+        type: 'booking',
+        link: '/franchise/queue'
+      });
+    }
+
     res.json({ success: true, service });
   } catch (err) {
     next(err);

@@ -35,7 +35,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/parts — admin add spare part
-router.post('/', protect, authorize('admin'), upload.single('image'), async (req, res, next) => {
+router.post('/', protect, authorize('admin'), upload.any(), async (req, res, next) => {
   try {
     // Whitelist only valid fields
     const data = {
@@ -50,9 +50,11 @@ router.post('/', protect, authorize('admin'), upload.single('image'), async (req
       isAvailable: req.body.isAvailable,
     };
     
-    // Only set image if file was uploaded
-    if (req.file) {
-      data.image = `/uploads/${req.file.filename}`;
+    // Only set images if files were uploaded
+    if (req.files && req.files.length > 0) {
+      data.images = req.files.map(f => `/uploads/${f.filename}`);
+      // Fallback for backwards compatibility with image field
+      data.image = data.images[0];
     }
     
     const part = await SparePart.create(data);
@@ -63,7 +65,7 @@ router.post('/', protect, authorize('admin'), upload.single('image'), async (req
 });
 
 // PUT /api/parts/:id — admin update
-router.put('/:id', protect, authorize('admin'), upload.single('image'), async (req, res, next) => {
+router.put('/:id', protect, authorize('admin'), upload.any(), async (req, res, next) => {
   try {
     // Whitelist only valid fields
     const data = {
@@ -78,13 +80,22 @@ router.put('/:id', protect, authorize('admin'), upload.single('image'), async (r
       isAvailable: req.body.isAvailable,
     };
     
-    // Handle image: only set if new file or remove flag
-    if (req.file) {
-      data.image = `/uploads/${req.file.filename}`;
-    } else if (req.body.removeImage === 'true') {
-      data.image = null;
+    let updatedImages = [];
+    if (req.body.existingImages) {
+      try {
+        updatedImages = JSON.parse(req.body.existingImages);
+      } catch (e) {
+        updatedImages = Array.isArray(req.body.existingImages) ? req.body.existingImages : [req.body.existingImages];
+      }
     }
-    // If neither, the image field is not included in update (keeps existing)
+
+    if (req.files && req.files.length > 0) {
+      const newImages = req.files.map(f => `/uploads/${f.filename}`);
+      updatedImages = [...updatedImages, ...newImages];
+    }
+    
+    data.images = updatedImages;
+    data.image = updatedImages.length > 0 ? updatedImages[0] : null;
     
     const part = await SparePart.findByIdAndUpdate(req.params.id, data, { returnDocument: 'after', runValidators: true });
     if (!part) return res.status(404).json({ success: false, message: 'Part not found' });
@@ -119,6 +130,31 @@ router.post('/orders', protect, async (req, res, next) => {
       totalAmount,
       shippingAddress,
     });
+
+    const Notification = require('../models/Notification');
+    const User = require('../models/User');
+
+    // Notify the user
+    await Notification.create({
+      recipient: req.user._id,
+      title: 'Order Placed',
+      message: `Your order for spare parts (Total: ₹${totalAmount}) has been confirmed.`,
+      type: 'order',
+      link: '/user/orders'
+    });
+
+    // Notify all admins
+    const admins = await User.find({ role: 'admin' });
+    if (admins.length > 0) {
+      const adminNotifications = admins.map(admin => ({
+        recipient: admin._id,
+        title: 'Spare Parts Order',
+        message: `${req.user.name} has placed an order worth ₹${totalAmount}.`,
+        type: 'order',
+        link: '/admin/parts'
+      }));
+      await Notification.insertMany(adminNotifications);
+    }
 
     res.status(201).json({ success: true, order });
   } catch (err) {
@@ -158,6 +194,15 @@ router.put('/orders/:id/status', protect, authorize('admin'), async (req, res, n
       .populate('user', 'name email')
       .populate('items.part', 'name partNumber price');
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      recipient: order.user._id,
+      title: 'Order Update',
+      message: `Your spare parts order is now: ${status}.`,
+      type: 'order',
+      link: '/user/orders'
+    });
     res.json({ success: true, order });
   } catch (err) {
     next(err);

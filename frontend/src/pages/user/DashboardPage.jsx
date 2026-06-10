@@ -61,15 +61,10 @@ export default function DashboardPage() {
       <div className="main-content" style={{ padding: '1.5rem 2rem' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: '1.75rem' }}>
-          <div style={{ fontSize: '.75rem', fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: '#06b6d4', marginBottom: '.3rem' }}>
-            Dashboard
-          </div>
-          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 700, color: '#f1f5f9' }}>
-            Welcome back, <span style={{ color: '#06b6d4' }}>{user?.name?.split(' ')[0] || 'User'}</span> 👋
-          </h1>
-          <p style={{ margin: '.3rem 0 0', color: '#64748b', fontSize: '.9rem' }}>Here's what's happening with your EV today.</p>
-        </div>
+        <UserPageHeader 
+          title={<span>Welcome back, <span style={{ color: '#06b6d4' }}>{user?.name?.split(' ')[0] || 'User'}</span> 👋</span>}
+          subtitle="Here's what's happening with your EV today."
+        />
 
         {error && (
           <div style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', borderRadius: '10px', padding: '.75rem 1rem', marginBottom: '1.25rem', color: '#f87171', fontSize: '.9rem' }}>

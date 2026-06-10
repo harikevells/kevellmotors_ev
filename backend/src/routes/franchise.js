@@ -38,7 +38,7 @@ router.get('/profile', async (req, res, next) => {
 // ── PUT /api/franchise/profile ─────────────────────────────────────
 router.put('/profile', async (req, res, next) => {
   try {
-    const allowed = ['name', 'phone', 'email', 'licenseNumber', 'gstNumber', 'capacity', 'address', 'workingHours', 'availableDays', 'pickupDropService'];
+    const allowed = ['name', 'phone', 'email', 'licenseNumber', 'gstNumber', 'capacity', 'address', 'schedules', 'pickupDropService'];
     const updates = {};
     allowed.forEach((f) => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
 

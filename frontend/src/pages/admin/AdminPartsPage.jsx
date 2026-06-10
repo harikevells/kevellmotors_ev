@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import Spinner from '../../components/common/Spinner';
 import { partsAPI } from '../../api';
 
@@ -15,7 +16,7 @@ const STATUS_STYLES = {
   cancelled: { bg: 'rgba(239,68,68,.15)',   color: '#f87171' },
 };
 
-const EMPTY_FORM = { name: '', partNumber: '', category: 'other', description: '', price: '', stock: '', brand: '', warranty: '', isAvailable: true, image: null };
+const EMPTY_FORM = { name: '', partNumber: '', category: 'other', description: '', price: '', stock: '', brand: '', warranty: '', isAvailable: true, images: [] };
 
 const bg = { background: '#06071a', minHeight: '100vh', color: '#e2e8f0' };
 const panelStyle = { background: 'linear-gradient(135deg,#0d0e2b,#111330)', border: '1px solid rgba(99,102,241,.18)', borderRadius: '16px', overflow: 'hidden' };
@@ -51,7 +52,7 @@ export default function AdminPartsPage() {
       name: part.name, partNumber: part.partNumber || '', category: part.category || 'other',
       description: part.description || '', price: part.price, stock: part.stock,
       brand: part.brand || '', warranty: part.warranty || '', isAvailable: part.isAvailable,
-      image: part.image || null,
+      images: part.images?.length > 0 ? part.images : (part.image ? [part.image] : []),
     });
     setError('');
     setShowModal(true);
@@ -73,15 +74,20 @@ export default function AdminPartsPage() {
       formData.append('warranty', form.warranty);
       formData.append('isAvailable', form.isAvailable);
       
-      // Handle image: Only append if it's a new File object
-      if (form.image instanceof File) {
-        formData.append('image', form.image);
-      } else if (form.image === null && editing) {
-        // User removed the image - send flag to backend to clear it
-        formData.append('removeImage', 'true');
+      // Handle images: Append all files and send existing image URLs
+      if (form.images && form.images.length > 0) {
+        const existingImages = [];
+        form.images.forEach(img => {
+          if (img instanceof File) {
+            formData.append('images', img);
+          } else if (typeof img === 'string') {
+            existingImages.push(img);
+          }
+        });
+        formData.append('existingImages', JSON.stringify(existingImages));
+      } else {
+        formData.append('existingImages', JSON.stringify([]));
       }
-      // If it's a string (existing image) and user didn't change it, don't send anything
-      // Backend will keep the existing image
       
       if (editing) await partsAPI.update(editing, formData);
       else await partsAPI.create(formData);
@@ -131,12 +137,24 @@ export default function AdminPartsPage() {
       <div style={{ flex: 1, padding: '1.75rem 2rem', overflowY: 'auto' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: '1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <div>
-            <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#6366f1', marginBottom: '.3rem' }}>Admin</div>
-            <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#f1f5f9' }}>🔩 Spare Parts</h1>
-            <p style={{ margin: '.25rem 0 0', color: '#64748b', fontSize: '.85rem' }}>Manage inventory and customer orders</p>
+        <AdminPageHeader 
+          title="🔩 Spare Parts" 
+          subtitle="Manage inventory and customer orders" 
+        />
+
+        {/* Tabs and Actions */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', gap: '.4rem', background: '#0d0e2b', padding: '.3rem', borderRadius: '12px', border: '1px solid rgba(99,102,241,.2)', width: 'fit-content' }}>
+            {[{ id: 'parts', label: `🔩 Parts (${parts.length})` }, { id: 'orders', label: `📦 Orders (${orders.length})` }].map((t) => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{
+                padding: '.45rem 1.2rem', borderRadius: '9px', border: 'none', cursor: 'pointer',
+                fontSize: '.83rem', fontWeight: 700,
+                background: tab === t.id ? 'linear-gradient(135deg,#6366f1,#06b6d4)' : 'transparent',
+                color: tab === t.id ? '#fff' : '#64748b', transition: 'all .2s',
+              }}>{t.label}</button>
+            ))}
           </div>
+
           {tab === 'parts' && (
             <button onClick={openCreate} style={{
               padding: '.6rem 1.4rem', borderRadius: '10px', border: 'none', cursor: 'pointer',
@@ -145,18 +163,6 @@ export default function AdminPartsPage() {
               + Add Part
             </button>
           )}
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: '.4rem', marginBottom: '1.5rem', background: '#0d0e2b', padding: '.3rem', borderRadius: '12px', border: '1px solid rgba(99,102,241,.2)', width: 'fit-content' }}>
-          {[{ id: 'parts', label: `🔩 Parts (${parts.length})` }, { id: 'orders', label: `📦 Orders (${orders.length})` }].map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: '.45rem 1.2rem', borderRadius: '9px', border: 'none', cursor: 'pointer',
-              fontSize: '.83rem', fontWeight: 700,
-              background: tab === t.id ? 'linear-gradient(135deg,#6366f1,#06b6d4)' : 'transparent',
-              color: tab === t.id ? '#fff' : '#64748b', transition: 'all .2s',
-            }}>{t.label}</button>
-          ))}
         </div>
 
         {/* ══════ PARTS TAB ══════ */}
@@ -180,12 +186,18 @@ export default function AdminPartsPage() {
                     {/* Card image area */}
                     <div style={{
                       height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: p.image ? `url(${p.image})` : 'linear-gradient(160deg,rgba(99,102,241,.08),rgba(6,182,212,.05))',
-                      backgroundSize: 'cover',
+                      backgroundImage: (p.images && p.images.length > 0) ? `url("${p.images[0]}")` : (p.image ? `url("${p.image}")` : 'linear-gradient(160deg,rgba(99,102,241,.08),rgba(6,182,212,.05))'),
+                      backgroundSize: (p.images?.length > 0 || p.image) ? 'contain' : 'cover',
                       backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
                       fontSize: '2.8rem', borderBottom: '1px solid rgba(99,102,241,.1)', position: 'relative',
                     }}>
-                      {!p.image && (CAT_ICONS[p.category] || '🔩')}
+                      {!(p.images?.length > 0 || p.image) && (CAT_ICONS[p.category] || '🔩')}
+                      {p.images && p.images.length > 1 && (
+                        <div style={{ position: 'absolute', bottom: '6px', left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                          {p.images.map((_, i) => <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: i === 0 ? '#06b6d4' : 'rgba(255,255,255,.4)' }} />)}
+                        </div>
+                      )}
                       <span style={{
                         position: 'absolute', top: '.5rem', right: '.65rem',
                         fontSize: '.6rem', fontWeight: 700, padding: '2px 7px', borderRadius: '999px', letterSpacing: '.06em', textTransform: 'uppercase',
@@ -351,33 +363,45 @@ export default function AdminPartsPage() {
                   <input style={inputStyle} placeholder="e.g. 1 Year" value={form.warranty} onChange={(e) => setForm((f) => ({ ...f, warranty: e.target.value }))} />
                 </div>
                 <div style={{ gridColumn: '1/-1' }}>
-                  <label style={labelStyle}>Product Image</label>
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                  <label style={labelStyle}>Product Images (Max 5)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={(e) => setForm((f) => ({ ...f, image: e.target.files?.[0] || null }))}
-                      style={{ flex: 1, ...inputStyle, cursor: 'pointer' }}
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files);
+                        const currentImages = form.images || [];
+                        if (currentImages.length + files.length > 5) {
+                          alert('You can only upload up to 5 images.');
+                          return;
+                        }
+                        setForm((f) => ({ ...f, images: [...currentImages, ...files].slice(0, 5) }));
+                      }}
+                      style={{ ...inputStyle, cursor: 'pointer' }}
                     />
-                    {form.image && (
-                      <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-                        <div style={{ width: 80, height: 80, borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(99,102,241,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99,102,241,.05)' }}>
-                          {typeof form.image === 'string' ? (
-                            <img src={form.image} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <img src={URL.createObjectURL(form.image)} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setForm((f) => ({ ...f, image: null }))}
-                          style={{
-                            padding: '.4rem .6rem', borderRadius: '8px', border: '1px solid rgba(239,68,68,.3)',
-                            background: 'rgba(239,68,68,.08)', color: '#f87171', cursor: 'pointer', fontWeight: 600, fontSize: '.75rem',
-                          }}
-                        >
-                          ✕ Remove
-                        </button>
+                    {(form.images || []).length > 0 && (
+                      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginTop: '.25rem' }}>
+                        {(form.images || []).map((img, idx) => (
+                          <div key={idx} style={{ position: 'relative', width: 60, height: 60, borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(99,102,241,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99,102,241,.05)' }}>
+                            <img 
+                              src={typeof img === 'string' ? img : URL.createObjectURL(img)} 
+                              alt="preview" 
+                              style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setForm((f) => ({ ...f, images: (f.images || []).filter((_, i) => i !== idx) }))}
+                              style={{
+                                position: 'absolute', top: 2, right: 2, background: 'rgba(239,68,68,.9)', color: '#fff',
+                                border: 'none', borderRadius: '50%', width: 18, height: 18, fontSize: '.6rem', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

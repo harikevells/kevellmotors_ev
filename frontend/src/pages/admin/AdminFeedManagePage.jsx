@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { adminAPI, feedAPI } from '../../api';
 
 export default function AdminFeedManagePage() {
@@ -70,10 +71,7 @@ export default function AdminFeedManagePage() {
       <div style={{ flex: 1, padding: '1.5rem 2rem', overflowY: 'auto' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: '1.75rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Push Feed &amp; Offers</h1>
-          <p style={{ color: '#6b7280', fontSize: '.83rem', marginTop: '.25rem' }}>Publish announcements and offers to users</p>
-        </div>
+        <AdminPageHeader title="Live Push Feed" subtitle="Manage and broadcast updates to franchise and user dashboards" />
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem' }}>

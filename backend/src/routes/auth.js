@@ -78,7 +78,7 @@ router.post(
     }
 
     try {
-      const { name, email, phone, password, franchiseName, street, city, state, pincode, licenseNumber, gstNumber, workingHours, availableDays, capacity, lat, lng, pickupDropService } = req.body;
+      const { name, email, phone, password, franchiseName, street, city, state, pincode, licenseNumber, gstNumber, schedules, capacity, lat, lng, pickupDropService } = req.body;
 
       const existing = await User.findOne({ email });
       if (existing) return res.status(400).json({ success: false, message: 'Email already registered' });
@@ -104,8 +104,7 @@ router.post(
         licenseNumber: licenseNumber || undefined,
         gstNumber: gstNumber || undefined,
         capacity: capacity ? Number(capacity) : 10,
-        workingHours: workingHours || undefined,
-        availableDays: availableDays || undefined,
+        schedules: schedules || undefined,
         pickupDropService: pickupDropService || false,
         status: 'pending',
       });

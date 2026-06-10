@@ -40,7 +40,7 @@ const LoginScreen: React.FC = () => {
       await login(trimEmail, password);
       // AppNavigator remounts and shows DrawerNavigator
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
+      const msg = err.response?.data?.message || err.message || 'Login failed. Please check your credentials.';
       Alert.alert('Login Failed', msg);
     } finally {
       setLoading(false);

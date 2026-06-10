@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import FranchiseSidebar from '../../components/franchise/FranchiseSidebar';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { franchisePortalAPI } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -62,16 +63,7 @@ export default function FranchisePaymentsPage() {
       <FranchiseSidebar />
       <div className="main-content" style={{ padding: '1.5rem 2rem' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.75rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Revenue</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#7c3aed,#1a6ef7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '.9rem', color: '#fff' }}>{user?.name?.[0]?.toUpperCase() || 'F'}</div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '.85rem', color: '#e2e8f0' }}>{user?.name || 'Franchise'}</div>
-              <div style={{ fontSize: '.7rem', color: '#6b7280' }}>Franchise</div>
-            </div>
-          </div>
-        </div>
+        <AdminPageHeader title="Revenue" />
 
         {/* Revenue Content */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '1rem', marginBottom: '1.5rem' }}>

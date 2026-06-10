@@ -6,6 +6,7 @@ const Payment = require('../models/Payment');
 const { Feedback } = require('../models/Feedback');
 const Subscription = require('../models/Subscription');
 const FeedPost = require('../models/FeedPost');
+const Notification = require('../models/Notification');
 const { protect, authorize } = require('../middleware/auth');
 
 // GET /api/admin/dashboard
@@ -76,7 +77,7 @@ router.get('/dashboard', protect, authorize('admin'), async (req, res, next) => 
 });
 
 // GET /api/admin/users — list all users
-router.get('/users', protect, authorize('admin'), async (req, res, next) => {
+router.get('/users', protect, authorize('admin', 'franchise'), async (req, res, next) => {
   try {
     const { role, page = 1, limit = 20, search } = req.query;
     const filter = {};
@@ -106,6 +107,21 @@ router.put('/users/:id/access', protect, authorize('admin'), async (req, res, ne
 
     const user = await User.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' }).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    // Determine what changed for the notification message
+    let messageParts = [];
+    if (role) messageParts.push(`Role changed to ${role}`);
+    if (isActive !== undefined) messageParts.push(`Status changed to ${isActive ? 'Active' : 'Suspended'}`);
+    
+    if (messageParts.length > 0) {
+      await Notification.create({
+        recipient: user._id,
+        title: 'Account Access Updated',
+        message: `Your account has been updated by the administrator: ${messageParts.join(', ')}.`,
+        type: 'system'
+      });
+    }
+
     res.json({ success: true, user });
   } catch (err) {
     next(err);
@@ -121,9 +137,9 @@ router.get('/services', protect, authorize('admin', 'franchise'), async (req, re
 
     const total = await Service.countDocuments(filter);
     const services = await Service.find(filter)
-      .populate('owner', 'name phone')
-      .populate('vehicle', 'registrationNumber make model')
-      .populate('franchise', 'name')
+      .populate('owner', 'name phone email')
+      .populate('vehicle', 'registrationNumber make model year type')
+      .populate('franchise', 'name address phone email')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));

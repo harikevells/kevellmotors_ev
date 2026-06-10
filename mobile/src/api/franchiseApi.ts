@@ -93,4 +93,12 @@ export const franchiseApi = {
   /** PATCH /franchise/bookings/:id/logistics */
   updateLogisticsStatus: (id: string, body: { pickupStatus?: string; dropStatus?: string }) =>
     apiClient.patch<{ service: Booking }>(`/franchise/bookings/${id}/logistics`, body),
+
+  // ── Subscriptions ────────────────────────────────────────────────────────────
+  getSubscriptions: () => apiClient.get<{ subscriptions: any[] }>('/subscriptions'),
+  getPlans: () => apiClient.get<{ plans: any[] }>('/subscriptions/admin/plans'),
+  createSubscription: (data: { planId: string; vehicleId: string; userId: string }) =>
+    apiClient.post<any>('/subscriptions', data),
+  getUsers: () => apiClient.get<{ users: any[] }>('/admin/users'),
+  getUserVehicles: (userId: string) => apiClient.get<{ vehicles: any[] }>(`/vehicles/user/${userId}`),
 };

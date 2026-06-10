@@ -35,7 +35,7 @@ const PaymentsScreen: React.FC = () => {
   if (loading) return <Spinner fullScreen text="Loading payments…" />;
 
   const totalPaid = payments
-    .filter((p) => p.status === 'paid')
+    .filter((p) => p.status === 'success')
     .reduce((sum, p) => sum + p.amount, 0);
 
   return (
@@ -49,7 +49,7 @@ const PaymentsScreen: React.FC = () => {
         <Card style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Total Amount Paid</Text>
           <Text style={styles.summaryAmount}>₹{totalPaid.toLocaleString('en-IN')}</Text>
-          <Text style={styles.summaryCount}>{payments.filter((p) => p.status === 'paid').length} successful transactions</Text>
+          <Text style={styles.summaryCount}>{payments.filter((p) => p.status === 'success').length} successful transactions</Text>
         </Card>
 
         {payments.length === 0 ? (
@@ -76,7 +76,7 @@ const PaymentsScreen: React.FC = () => {
                   )}
                 </View>
                 <View style={styles.payRight}>
-                  <Text style={[styles.payAmount, p.status === 'paid' ? styles.payAmountPaid : styles.payAmountFailed]}>
+                  <Text style={[styles.payAmount, p.status === 'success' ? styles.payAmountPaid : styles.payAmountFailed]}>
                     {p.status === 'refunded' ? '-' : ''}₹{p.amount.toLocaleString('en-IN')}
                   </Text>
                   <StatusBadge status={p.status} />

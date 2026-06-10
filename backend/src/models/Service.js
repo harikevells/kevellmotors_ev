@@ -17,6 +17,7 @@ const serviceSchema = new mongoose.Schema(
     },
     description: { type: String },
     scheduledDate: { type: Date },
+    scheduledTime: { type: String },
     completedDate: { type: Date },
     estimatedAmount: { type: Number },
     finalAmount: { type: Number },

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import FranchiseSidebar from '../../components/franchise/FranchiseSidebar';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { franchisePortalAPI } from '../../api';
 import { Wallet, History, ArrowUpCircle, Banknote } from 'lucide-react';
 
@@ -137,9 +138,7 @@ export default function FranchiseWalletPage() {
       <FranchiseSidebar />
       <div style={{ flex: 1, padding: '1.5rem 2rem' }}>
         {/* Header */}
-        <div style={{ marginBottom: '1.75rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Wallet</h1>
-        </div>
+        <AdminPageHeader title="Wallet" />
 
         {/* Balance Grid */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>

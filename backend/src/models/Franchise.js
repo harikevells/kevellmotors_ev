@@ -22,14 +22,15 @@ const franchiseSchema = new mongoose.Schema(
     capacity: { type: Number, default: 10 },
     technicianCount: { type: Number, default: 0 },
     servicesOffered: [{ type: String }],
-    workingHours: {
-      open: { type: String, default: '09:00' },
-      close: { type: String, default: '18:00' },
-    },
-    availableDays: {
-      type: [{ type: String, enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] }],
-      default: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-    },
+    schedules: [{
+      type: { type: String, enum: ['overall', 'date_range', 'single_date'], required: true },
+      startDate: { type: String }, 
+      endDate: { type: String },   
+      days: [{ type: String }],    
+      open: { type: String }, 
+      close: { type: String }, 
+      isClosed: { type: Boolean, default: false }
+    }],
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
     documents: [{ name: String, url: String }],

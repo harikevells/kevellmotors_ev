@@ -14,6 +14,19 @@ router.get('/', protect, async (req, res, next) => {
   }
 });
 
+// GET /api/vehicles/user/:userId — admin/franchise get a user's vehicles
+router.get('/user/:userId', protect, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'franchise') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    const vehicles = await Vehicle.find({ owner: req.params.userId, isActive: true });
+    res.json({ success: true, vehicles });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/vehicles — add vehicle
 router.post('/', protect, async (req, res, next) => {
   try {

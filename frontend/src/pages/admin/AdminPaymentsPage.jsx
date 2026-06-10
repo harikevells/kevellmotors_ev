@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { paymentAPI } from '../../api';
 
 const PAY_CFG = {
@@ -25,12 +26,17 @@ export default function AdminPaymentsPage() {
   const [refunding, setRefunding] = useState(null);
   const [total, setTotal]       = useState(0);
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
   const bg   = { background: '#06071a', color: '#e2e8f0', minHeight: '100vh', display: 'flex' };
   const card = { background: '#0d0e2b', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12 };
   const th   = { padding: '.75rem 1.25rem', textAlign: 'left', fontSize: '.7rem', fontWeight: 700, color: '#4b5563', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', textTransform: 'uppercase', letterSpacing: '.6px', whiteSpace: 'nowrap' };
+  const inputStyle = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '.4rem .8rem', borderRadius: 6, fontSize: '.8rem', outline: 'none' };
 
   const load = () => {
-    const params = {};
+    const params = { limit: 1000 };
     if (status) params.status = status;
     paymentAPI.listAll(params)
       .then((r) => { setPayments(r.data.payments); setTotal(r.data.total); })
@@ -63,7 +69,33 @@ export default function AdminPaymentsPage() {
     </div>
   );
 
-  const revenue = payments.filter(p => p.status === 'success').reduce((s, p) => s + (p.amount || 0), 0);
+  const filteredPayments = payments.filter(p => {
+    let match = true;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      const n = (p.user?.name || '').toLowerCase();
+      const e = (p.user?.email || '').toLowerCase();
+      const r = (p.razorpayPaymentId || p.orderId || p.invoiceNumber || '').toLowerCase();
+      const a = String(p.amount || '');
+      const s = (p.status || '').toLowerCase();
+      const pf = (p.paymentFor || '').replace(/_/g, ' ').toLowerCase();
+      const src = (p.source || 'payment').toLowerCase();
+      const act = (p.status === 'success' && p.source !== 'invoice') ? 'refund' : '';
+      
+      if (!n.includes(q) && !e.includes(q) && !r.includes(q) && !a.includes(q) && !s.includes(q) && !pf.includes(q) && !src.includes(q) && !act.includes(q)) match = false;
+    }
+    if (startDate) {
+      if (new Date(p.createdAt) < new Date(startDate)) match = false;
+    }
+    if (endDate) {
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      if (new Date(p.createdAt) > endOfDay) match = false;
+    }
+    return match;
+  });
+
+  const revenue = filteredPayments.filter(p => p.status === 'success').reduce((s, p) => s + (p.amount || 0), 0);
 
   return (
     <div style={bg}>
@@ -71,20 +103,50 @@ export default function AdminPaymentsPage() {
       <div style={{ flex: 1, padding: '1.5rem 2rem', overflowY: 'auto' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: '1.75rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Payment Management</h1>
-          <p style={{ color: '#6b7280', fontSize: '.83rem', marginTop: '.25rem' }}>
-            {total} transactions · Revenue: <span style={{ color: '#02FF7F', fontWeight: 700 }}>₹{revenue.toLocaleString()}</span>
-          </p>
-        </div>
+        <AdminPageHeader title="Payments" subtitle={`Total: ${filteredPayments.length} transactions · Revenue: ₹${revenue.toLocaleString()}`} />
 
-        {/* Status Filter */}
-        <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          {['', 'success', 'failed', 'refunded', 'pending'].map((s) => (
-            <button key={s} style={filterBtn(status === s)} onClick={() => setStatus(s)}>
-              {s || 'All'}
-            </button>
-          ))}
+        {/* Filters */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+            {['', 'success', 'failed', 'refunded', 'pending'].map((s) => (
+              <button key={s} style={filterBtn(status === s)} onClick={() => setStatus(s)}>
+                {s || 'All'}
+              </button>
+            ))}
+          </div>
+          
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input 
+              type="text" 
+              placeholder="Search by name, email, or ID..." 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)} 
+              style={{ ...inputStyle, width: '220px' }} 
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={(e) => setStartDate(e.target.value)} 
+                style={inputStyle} 
+              />
+              <span style={{ color: '#6b7280' }}>to</span>
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)} 
+                style={inputStyle} 
+              />
+              {(searchTerm || startDate || endDate) && (
+                <button 
+                  onClick={() => { setSearchTerm(''); setStartDate(''); setEndDate(''); }}
+                  style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Table */}
@@ -99,7 +161,7 @@ export default function AdminPaymentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p, idx) => (
+                {filteredPayments.map((p, idx) => (
                   <tr key={p._id}
                     style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: idx % 2 !== 0 ? 'rgba(255,255,255,0.015)' : 'transparent', transition: 'background .15s' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,229,255,0.04)'}
@@ -131,7 +193,7 @@ export default function AdminPaymentsPage() {
                 ))}
               </tbody>
             </table>
-            {payments.length === 0 && <div style={{ padding: '2.5rem', textAlign: 'center', color: '#4b5563' }}>No payments found</div>}
+            {filteredPayments.length === 0 && <div style={{ padding: '2.5rem', textAlign: 'center', color: '#4b5563' }}>No payments found</div>}
           </div>
         </div>
 

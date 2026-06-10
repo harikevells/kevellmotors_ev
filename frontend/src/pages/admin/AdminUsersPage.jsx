@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
+import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { adminAPI } from '../../api';
 
 const ROLES = ['user', 'admin', 'franchise'];
@@ -48,10 +49,7 @@ export default function AdminUsersPage() {
       <div style={{ flex: 1, padding: '1.5rem 2rem', overflowY: 'auto' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: '1.75rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>User Access Control</h1>
-          <p style={{ color: '#6b7280', fontSize: '.83rem', marginTop: '.25rem' }}>Manage roles and account status</p>
-        </div>
+        <AdminPageHeader title="Users" subtitle="Manage customers and accounts" />
 
         {/* Filters */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>

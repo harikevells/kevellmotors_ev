@@ -4,7 +4,7 @@ const subscriptionSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     vehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle', required: true },
-    plan: { type: String, enum: ['monthly', 'quarterly', 'amc_1yr', 'amc_2yr'], required: true },
+    plan: { type: String, required: true },
     status: { type: String, enum: ['active', 'expired', 'cancelled', 'pending'], default: 'pending' },
     startDate: { type: Date },
     endDate: { type: Date },

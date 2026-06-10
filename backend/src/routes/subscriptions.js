@@ -42,8 +42,8 @@ router.get('/plans', async (req, res, next) => {
 
 // ─── Admin plan CRUD ──────────────────────────────────────────────────────────
 
-// GET /api/subscriptions/admin/plans — admin: all plans (incl inactive)
-router.get('/admin/plans', protect, authorize('admin'), async (req, res, next) => {
+// GET /api/subscriptions/admin/plans — admin/franchise: all plans (incl inactive)
+router.get('/admin/plans', protect, authorize('admin', 'franchise'), async (req, res, next) => {
   try {
     const plans = await SubscriptionPlan.find().sort({ sortOrder: 1, createdAt: 1 });
     res.json({ success: true, plans });
@@ -52,8 +52,8 @@ router.get('/admin/plans', protect, authorize('admin'), async (req, res, next) =
   }
 });
 
-// POST /api/subscriptions/admin/plans — admin: create plan
-router.post('/admin/plans', protect, authorize('admin'), async (req, res, next) => {
+// POST /api/subscriptions/admin/plans — admin/franchise: create plan
+router.post('/admin/plans', protect, authorize('admin', 'franchise'), async (req, res, next) => {
   try {
     const plan = await SubscriptionPlan.create(req.body);
     res.status(201).json({ success: true, plan });
@@ -62,8 +62,8 @@ router.post('/admin/plans', protect, authorize('admin'), async (req, res, next) 
   }
 });
 
-// PUT /api/subscriptions/admin/plans/:id — admin: update plan
-router.put('/admin/plans/:id', protect, authorize('admin'), async (req, res, next) => {
+// PUT /api/subscriptions/admin/plans/:id — admin/franchise: update plan
+router.put('/admin/plans/:id', protect, authorize('admin', 'franchise'), async (req, res, next) => {
   try {
     const plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
     if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
@@ -73,8 +73,8 @@ router.put('/admin/plans/:id', protect, authorize('admin'), async (req, res, nex
   }
 });
 
-// DELETE /api/subscriptions/admin/plans/:id — admin: delete plan
-router.delete('/admin/plans/:id', protect, authorize('admin'), async (req, res, next) => {
+// DELETE /api/subscriptions/admin/plans/:id — admin/franchise: delete plan
+router.delete('/admin/plans/:id', protect, authorize('admin', 'franchise'), async (req, res, next) => {
   try {
     const plan = await SubscriptionPlan.findByIdAndDelete(req.params.id);
     if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
@@ -84,13 +84,36 @@ router.delete('/admin/plans/:id', protect, authorize('admin'), async (req, res, 
   }
 });
 
-// GET /api/subscriptions — user's subscriptions
+// GET /api/subscriptions — user's subscriptions (or all for admin/franchise)
 router.get('/', protect, async (req, res, next) => {
   try {
-    const subscriptions = await Subscription.find({ user: req.user._id })
+    let filter = {};
+    if (req.user.role === 'user') {
+      filter = { user: req.user._id };
+    }
+    const subscriptions = await Subscription.find(filter)
+      .populate('user', 'name email phone')
       .populate('vehicle', 'registrationNumber make model')
       .sort({ createdAt: -1 });
-    res.json({ success: true, subscriptions });
+
+    const plans = await SubscriptionPlan.find();
+    const planMap = {};
+    plans.forEach(p => {
+      planMap[p.key] = p;
+    });
+
+    const populatedSubscriptions = subscriptions.map(sub => {
+      const subObj = sub.toObject();
+      const planDetail = planMap[sub.plan];
+      if (planDetail) {
+        subObj.plan = planDetail;
+      } else {
+        subObj.plan = { name: sub.plan, highlights: sub.features || [], services: sub.servicesIncluded, duration: 30, amount: sub.amount };
+      }
+      return subObj;
+    });
+
+    res.json({ success: true, subscriptions: populatedSubscriptions });
   } catch (err) {
     next(err);
   }
@@ -99,15 +122,20 @@ router.get('/', protect, async (req, res, next) => {
 // POST /api/subscriptions — create subscription
 router.post('/', protect, async (req, res, next) => {
   try {
-    const { planId, vehicleId } = req.body;
+    const { planId, vehicleId, userId } = req.body;
     const planDoc = await SubscriptionPlan.findOne({ _id: planId, isActive: true });
     if (!planDoc) return res.status(400).json({ success: false, message: 'Invalid or inactive plan' });
+
+    let targetUserId = req.user._id;
+    if ((req.user.role === 'admin' || req.user.role === 'franchise') && userId) {
+      targetUserId = userId;
+    }
 
     const startDate = new Date();
     const endDate = new Date(Date.now() + planDoc.duration * 24 * 60 * 60 * 1000);
 
     const subscription = await Subscription.create({
-      user: req.user._id,
+      user: targetUserId,
       vehicle: vehicleId,
       plan: planDoc.key,
       amount: planDoc.amount,
@@ -117,7 +145,10 @@ router.post('/', protect, async (req, res, next) => {
       features: planDoc.highlights,
     });
 
-    res.status(201).json({ success: true, subscription });
+    const subObj = subscription.toObject();
+    subObj.plan = planDoc;
+
+    res.status(201).json({ success: true, subscription: subObj });
   } catch (err) {
     next(err);
   }
@@ -129,7 +160,16 @@ router.get('/:id', protect, async (req, res, next) => {
     const subscription = await Subscription.findOne({ _id: req.params.id, user: req.user._id })
       .populate('vehicle');
     if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });
-    res.json({ success: true, subscription });
+    
+    const planDetail = await SubscriptionPlan.findOne({ key: subscription.plan });
+    const subObj = subscription.toObject();
+    if (planDetail) {
+      subObj.plan = planDetail;
+    } else {
+      subObj.plan = { name: subscription.plan, highlights: subscription.features || [], services: subscription.servicesIncluded, duration: 30, amount: subscription.amount };
+    }
+    
+    res.json({ success: true, subscription: subObj });
   } catch (err) {
     next(err);
   }
@@ -144,7 +184,40 @@ router.put('/:id/activate', protect, authorize('admin'), async (req, res, next) 
       { new: true }
     );
     if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });
-    res.json({ success: true, subscription });
+    
+    const planDetail = await SubscriptionPlan.findOne({ key: subscription.plan });
+    const subObj = subscription.toObject();
+    if (planDetail) {
+      subObj.plan = planDetail;
+    } else {
+      subObj.plan = { name: subscription.plan, highlights: subscription.features || [], services: subscription.servicesIncluded, duration: 30, amount: subscription.amount };
+    }
+    
+    res.json({ success: true, subscription: subObj });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/subscriptions/:id/reject — admin rejects pending subscription
+router.put('/:id/reject', protect, authorize('admin'), async (req, res, next) => {
+  try {
+    const subscription = await Subscription.findByIdAndUpdate(
+      req.params.id,
+      { status: 'cancelled' },
+      { new: true }
+    );
+    if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });
+    
+    const planDetail = await SubscriptionPlan.findOne({ key: subscription.plan });
+    const subObj = subscription.toObject();
+    if (planDetail) {
+      subObj.plan = planDetail;
+    } else {
+      subObj.plan = { name: subscription.plan, highlights: subscription.features || [], services: subscription.servicesIncluded, duration: 30, amount: subscription.amount };
+    }
+    
+    res.json({ success: true, subscription: subObj });
   } catch (err) {
     next(err);
   }

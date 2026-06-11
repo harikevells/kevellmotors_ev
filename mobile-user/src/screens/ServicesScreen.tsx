@@ -5,13 +5,13 @@ import {
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { serviceAPI, vehicleAPI, franchiseAPI } from '../api';
+import { serviceAPI, vehicleAPI, franchiseAPI, subscriptionAPI } from '../api';
 import { Colors } from '../utils/colors';
 import Card from '../components/Card';
 import Header from '../components/Header';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
-import type { Service, Vehicle, Franchise } from '../types';
+import type { Service, Vehicle, Franchise, Subscription } from '../types';
 import { Wrench, MapPin, Clock } from 'lucide-react-native';
 
 const SERVICE_TYPES = ['general', 'battery', 'motor', 'software', 'accident', 'amc', 'custom'];
@@ -21,6 +21,7 @@ const ServicesScreen: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [franchises, setFranchises] = useState<Franchise[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [bookModal, setBookModal] = useState(false);
@@ -95,12 +96,13 @@ const ServicesScreen: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const [sRes, vRes, fRes] = await Promise.all([
-        serviceAPI.list(), vehicleAPI.list(), franchiseAPI.listActive(),
+      const [sRes, vRes, fRes, subRes] = await Promise.all([
+        serviceAPI.list(), vehicleAPI.list(), franchiseAPI.listActive(), subscriptionAPI.list(),
       ]);
       setServices(sRes.data.services || []);
       setVehicles(vRes.data.vehicles || []);
       setFranchises(fRes.data.franchises || []);
+      setSubscriptions(subRes.data.subscriptions?.filter((s: Subscription) => s.status === 'active') || []);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
@@ -194,6 +196,21 @@ const ServicesScreen: React.FC = () => {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {form.vehicle ? (() => {
+              const activeSub = subscriptions.find(s => s.vehicle?._id === form.vehicle);
+              if (!activeSub) return null;
+              const planName = typeof activeSub.plan === 'object' && activeSub.plan ? activeSub.plan.name : (activeSub.plan || 'Plan');
+              return (
+                <View style={{ backgroundColor: 'rgba(34,197,94,0.1)', padding: 12, borderRadius: 10, marginTop: 14, borderWidth: 1, borderColor: 'rgba(34,197,94,0.3)', flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 18, marginRight: 10 }}>💎</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.success, fontWeight: '700', fontSize: 13 }}>Active Subscription Applied</Text>
+                    <Text style={{ color: Colors.success, fontSize: 11, marginTop: 2, opacity: 0.9 }}>{planName} - Eligible for free service/labour</Text>
+                  </View>
+                </View>
+              );
+            })() : null}
 
             <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Service Type *</Text>
             <View style={styles.chipRow}>

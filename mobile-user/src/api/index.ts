@@ -57,6 +57,13 @@ export const feedbackAPI = {
   getReviews: (params?: object) => api.get('/feedback/reviews', { params }),
 };
 
+export const notificationsAPI = {
+  list: () => api.get('/notifications'),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id: string) => api.put(`/notifications/${id}/read`),
+  markAllAsRead: () => api.put('/notifications/read-all'),
+};
+
 export const reminderAPI = {
   list: () => api.get('/reminders'),
   create: (data: object) => api.post('/reminders', data),

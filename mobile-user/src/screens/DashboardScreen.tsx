@@ -29,7 +29,7 @@ import {
   Heart,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
-import { serviceAPI, vehicleAPI, subscriptionAPI, reminderAPI, feedAPI } from '../api';
+import { serviceAPI, vehicleAPI, subscriptionAPI, reminderAPI, feedAPI, notificationsAPI } from '../api';
 import { Colors } from '../utils/colors';
 import Card from '../components/Card';
 import StatusBadge from '../components/StatusBadge';
@@ -148,23 +148,28 @@ const DashboardScreen: React.FC = () => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [feed, setFeed] = useState<FeedPost[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [sRes, vRes, subRes, remRes, feedRes] = await Promise.all([
+      const [sRes, vRes, subRes, remRes, feedRes, notifRes] = await Promise.all([
         serviceAPI.list(),
         vehicleAPI.list(),
         subscriptionAPI.list(),
         reminderAPI.list(),
         feedAPI.list({ limit: 5 }),
+        notificationsAPI.list(),
       ]);
       setServices(sRes.data.services || []);
       setVehicles(vRes.data.vehicles || []);
       setSubscriptions(subRes.data.subscriptions || []);
       setReminders(remRes.data.reminders || []);
       setFeed(feedRes.data.posts || []);
+      
+      const unread = (notifRes.data.notifications || []).filter((n: any) => !n.isRead).length;
+      setUnreadCount(unread);
     } catch (_err) {
       // silently fail — show whatever loaded
     } finally {
@@ -225,8 +230,12 @@ const DashboardScreen: React.FC = () => {
           <Text style={styles.headerSubtitle}>{getGreeting()}</Text>
           <Text style={styles.headerTitle}>Welcome to {user?.name || 'User'}</Text>
         </View>
-        <TouchableOpacity style={styles.notifBtn}>
-          <View style={styles.notifBadge} />
+        <TouchableOpacity style={styles.notifBtn} onPress={() => navigation.navigate('Notifications')}>
+          {unreadCount > 0 && (
+            <View style={[styles.notifBadge, { width: 18, height: 18, top: -2, right: -2, alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+            </View>
+          )}
           <Bell size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
       </View>

@@ -210,6 +210,12 @@ export default function AdminSubscriptionsPage() {
   const [saving, setSaving]       = useState(false);
   const [err, setErr]             = useState('');
 
+  // Usage state
+  const [showUsageModal, setShowUsageModal] = useState(false);
+  const [usageData, setUsageData]           = useState([]);
+  const [loadingUsage, setLoadingUsage]     = useState(false);
+  const [selectedSubForUsage, setSelectedSubForUsage] = useState(null);
+
   // Tab & requests state
   const [tab, setTab]             = useState('plans'); // 'plans' or 'requests'
   const [subscriptions, setSubscriptions] = useState([]);
@@ -333,6 +339,21 @@ export default function AdminSubscriptionsPage() {
       alert(e.response?.data?.message || 'Failed to reject subscription');
     } finally {
       setActivatingId(null);
+    }
+  };
+
+  const handleViewUsage = async (sub) => {
+    setSelectedSubForUsage(sub);
+    setShowUsageModal(true);
+    setLoadingUsage(true);
+    try {
+      const res = await subscriptionAPI.getUsage(sub._id);
+      setUsageData(res.data.services || []);
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to fetch usage');
+      setUsageData([]);
+    } finally {
+      setLoadingUsage(false);
     }
   };
 
@@ -651,7 +672,25 @@ export default function AdminSubscriptionsPage() {
                             )}
                           </td>
                           <td style={{ padding: '1rem', textAlign: 'right' }}>
-                            {sub.status === 'pending' ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'flex-end' }}>
+                              <button
+                                onClick={() => handleViewUsage(sub)}
+                                style={{
+                                  background: 'rgba(0, 229, 255, 0.1)',
+                                  border: '1px solid #00e5ff',
+                                  borderRadius: 6,
+                                  color: '#00e5ff',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  padding: '.35rem .75rem',
+                                  fontSize: '.72rem',
+                                  transition: 'all 0.2s',
+                                  marginBottom: '0.3rem'
+                                }}
+                              >
+                                View Usage
+                              </button>
+                              {sub.status === 'pending' ? (
                               isAdmin ? (
                                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                                   <button
@@ -755,6 +794,7 @@ export default function AdminSubscriptionsPage() {
                             ) : (
                               <span style={{ color: '#475569', fontSize: '.75rem' }}>N/A</span>
                             )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -774,6 +814,55 @@ export default function AdminSubscriptionsPage() {
           onClose={() => { setShowModal(false); setEditTarget(null); }}
           saving={saving}
         />
+      )}
+
+      {/* Usage Modal */}
+      {showUsageModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '1rem' }}>
+          <div style={{ ...card, padding: '1.75rem', width: '100%', maxWidth: 700, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ margin: 0, color: '#e2e8f0' }}>Usage History</h3>
+              <button onClick={() => setShowUsageModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+            
+            {loadingUsage ? (
+              <Spinner />
+            ) : usageData.length === 0 ? (
+              <p style={{ color: '#94a3b8', textAlign: 'center', padding: '2rem 0' }}>No service usage found for this subscription vehicle.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {usageData.map(service => (
+                  <div key={service._id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.5rem' }}>
+                      <span style={{ fontWeight: 700, color: '#e2e8f0', textTransform: 'capitalize' }}>{service.serviceType} Service</span>
+                      <span style={{ fontSize: '.75rem', color: '#64748b' }}>{fmt(service.createdAt)}</span>
+                    </div>
+                    <div style={{ fontSize: '.8rem', color: '#94a3b8', marginBottom: '1rem' }}>
+                      Status: <strong style={{ color: '#00e5ff' }}>{service.status.replace('_', ' ')}</strong> | Amount: ₹{service.finalAmount || service.estimatedAmount || 0}
+                    </div>
+                    
+                    {service.spareParts && service.spareParts.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '.4rem' }}>Spare Parts Used</div>
+                        <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '.8rem', color: '#cbd5e1' }}>
+                          {service.spareParts.map((sp, i) => (
+                            <li key={i} style={{ marginBottom: '.2rem' }}>
+                              {sp.part ? sp.part.name : 'Unknown Part'} (Qty: {sp.quantity}) - ₹{sp.price}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
+              <button onClick={() => setShowUsageModal(false)} style={{ background: '#00e5ff', border: 'none', borderRadius: 8, color: '#06071a', fontWeight: 700, cursor: 'pointer', padding: '.55rem 1.4rem', fontSize: '.875rem' }}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

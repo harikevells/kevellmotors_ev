@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Subscription = require('../models/Subscription');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
+const Service = require('../models/Service');
 const { protect, authorize } = require('../middleware/auth');
 
 // ─── Default plans seeded on first run ───────────────────────────────────────
@@ -131,16 +132,12 @@ router.post('/', protect, async (req, res, next) => {
       targetUserId = userId;
     }
 
-    const startDate = new Date();
-    const endDate = new Date(Date.now() + planDoc.duration * 24 * 60 * 60 * 1000);
-
     const subscription = await Subscription.create({
       user: targetUserId,
       vehicle: vehicleId,
       plan: planDoc.key,
       amount: planDoc.amount,
-      startDate,
-      endDate,
+      status: 'pending', // Explicitly pending until admin approves
       servicesIncluded: planDoc.services,
       features: planDoc.highlights,
     });
@@ -175,12 +172,44 @@ router.get('/:id', protect, async (req, res, next) => {
   }
 });
 
-// PUT /api/subscriptions/:id/activate — admin activates after payment
+// GET /api/subscriptions/:id/usage — admin/franchise gets usage of a subscription
+router.get('/:id/usage', protect, authorize('admin', 'franchise'), async (req, res, next) => {
+  try {
+    const subscription = await Subscription.findById(req.params.id);
+    if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });
+    
+    // Find services for this vehicle and user
+    const services = await Service.find({
+      vehicle: subscription.vehicle,
+      owner: subscription.user,
+    }).populate('spareParts.part', 'name partNumber price category').sort({ createdAt: -1 });
+
+    res.json({ success: true, services });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/subscriptions/:id/activate — admin activates
 router.put('/:id/activate', protect, authorize('admin'), async (req, res, next) => {
   try {
+    const subscriptionToAct = await Subscription.findById(req.params.id);
+    if (!subscriptionToAct) return res.status(404).json({ success: false, message: 'Subscription not found' });
+
+    const planDetailToAct = await SubscriptionPlan.findOne({ key: subscriptionToAct.plan });
+    const duration = planDetailToAct ? planDetailToAct.duration : 30;
+
+    const updates = { status: 'active' };
+    if (req.body.paymentId) updates.paymentId = req.body.paymentId;
+    
+    if (!subscriptionToAct.startDate) {
+      updates.startDate = new Date();
+      updates.endDate = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
+    }
+
     const subscription = await Subscription.findByIdAndUpdate(
       req.params.id,
-      { status: 'active', paymentId: req.body.paymentId },
+      updates,
       { new: true }
     );
     if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });

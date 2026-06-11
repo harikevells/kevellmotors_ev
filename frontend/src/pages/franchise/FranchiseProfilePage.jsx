@@ -54,6 +54,8 @@ export default function FranchiseProfilePage() {
         setLiveReviews(feedbackRes.data.reviews || []);
         setLiveFeedbacks(feedbackRes.data.feedbacks || []);
         const r = profileRes.data.franchise;
+        // Map the new 'schedules' schema to the simple UI
+        const mainSchedule = r.schedules?.[0] || {};
         setForm({
           name: r.name || '',
           email: r.email || '',
@@ -68,10 +70,10 @@ export default function FranchiseProfilePage() {
             pincode: r.address?.pincode || '',
           },
           workingHours: {
-            open:  r.workingHours?.open  || '09:00',
-            close: r.workingHours?.close || '18:00',
+            open:  mainSchedule.open  || '09:00',
+            close: mainSchedule.close || '18:00',
           },
-          availableDays: r.availableDays || ['monday','tuesday','wednesday','thursday','friday'],
+          availableDays: mainSchedule.days || ['monday','tuesday','wednesday','thursday','friday'],
           lat: r.location?.coordinates?.[1]?.toString() || '',
           lng: r.location?.coordinates?.[0]?.toString() || '',
           pickupDropService: !!r.pickupDropService,
@@ -104,7 +106,15 @@ export default function FranchiseProfilePage() {
     e.preventDefault();
     setSaving(true); setError(''); setSuccess('');
     try {
-      await franchisePortalAPI.updateProfile(form);
+      const payload = { ...form };
+      // Map simple UI back to the new 'schedules' schema
+      payload.schedules = [{
+        type: 'overall',
+        days: form.availableDays,
+        open: form.workingHours.open,
+        close: form.workingHours.close
+      }];
+      await franchisePortalAPI.updateProfile(payload);
       setSuccess('Profile updated successfully!');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update profile');

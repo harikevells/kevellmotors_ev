@@ -130,9 +130,9 @@ router.post('/verify', protect, async (req, res, next) => {
       { new: true }
     );
 
-    // Activate subscription if applicable
+    // Link payment to subscription but DO NOT activate (Admin must approve)
     if (payment.paymentFor === 'subscription') {
-      await Subscription.findByIdAndUpdate(payment.referenceId, { status: 'active', paymentId: payment._id });
+      await Subscription.findByIdAndUpdate(payment.referenceId, { paymentId: payment._id });
     }
 
     const Notification = require('../models/Notification');

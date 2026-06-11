@@ -47,6 +47,7 @@ const MENU_ITEMS: MenuItem[] = [
   { name: 'Payments',      label: 'Payments',         icon: CreditCard },
   { name: 'Feedback',      label: 'Feedback',         icon: MessageSquare },
   { name: 'Reminders',     label: 'Reminders',        icon: Bell },
+  { name: 'Notifications', label: 'Notifications',    icon: Bell },
   { name: 'Referrals',     label: 'Referrals',        icon: Gift },
   { name: 'Documents',     label: 'Documents',        icon: FileText },
   { name: 'Profile',       label: 'Profile',          icon: User },

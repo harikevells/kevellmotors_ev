@@ -47,6 +47,21 @@ router.post('/', protect, async (req, res, next) => {
       serviceData.pickupStatus = 'pending';
     }
 
+    // Check if user has an active subscription for this vehicle
+    const Subscription = require('../models/Subscription');
+    const activeSub = await Subscription.findOne({
+      user: req.user._id,
+      vehicle: req.body.vehicle,
+      status: 'active'
+    });
+
+    if (activeSub && activeSub.servicesUsed < activeSub.servicesIncluded) {
+      activeSub.servicesUsed += 1;
+      await activeSub.save();
+      serviceData.technicianNotes = 'Service covered under active subscription. (Included free service used)';
+      serviceData.paymentStatus = 'waived';
+    }
+
     const service = await Service.create(serviceData);
 
     // Auto-create reminder for next service (3 months later)

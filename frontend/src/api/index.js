@@ -37,6 +37,7 @@ export const subscriptionAPI = {
   create: (data) => api.post('/subscriptions', data),
   activate: (id, data) => api.put(`/subscriptions/${id}/activate`, data),
   reject: (id) => api.put(`/subscriptions/${id}/reject`),
+  getUsage: (id) => api.get(`/subscriptions/${id}/usage`),
 };
 
 export const subscriptionPlanAPI = {

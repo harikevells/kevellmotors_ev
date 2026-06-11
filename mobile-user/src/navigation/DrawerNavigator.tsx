@@ -16,6 +16,7 @@ import RemindersScreen from '../screens/RemindersScreen';
 import ReferralsScreen from '../screens/ReferralsScreen';
 import DocumentsScreen from '../screens/DocumentsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 export type DrawerParamList = {
   Dashboard:     undefined;
@@ -30,6 +31,7 @@ export type DrawerParamList = {
   Referrals:     undefined;
   Documents:     undefined;
   Profile:       undefined;
+  Notifications: undefined;
 };
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
@@ -60,6 +62,7 @@ const DrawerNavigator: React.FC = () => (
     <Drawer.Screen name="Referrals"     component={ReferralsScreen} />
     <Drawer.Screen name="Documents"     component={DocumentsScreen} />
     <Drawer.Screen name="Profile"       component={ProfileScreen} />
+    <Drawer.Screen name="Notifications" component={NotificationsScreen} />
   </Drawer.Navigator>
 );
 

@@ -29,7 +29,8 @@ const franchiseSchema = new mongoose.Schema(
       days: [{ type: String }],    
       open: { type: String }, 
       close: { type: String }, 
-      isClosed: { type: Boolean, default: false }
+      isClosed: { type: Boolean, default: false },
+      capacity: { type: Number }
     }],
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },

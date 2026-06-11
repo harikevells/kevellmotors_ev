@@ -15,7 +15,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { FranchiseMoreStackParamList } from '../../navigation/FranchiseNavigator';
 import { franchiseApi } from '../../api/franchiseApi';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, ShieldCheck, Users, History, Banknote, MessageSquare, ChevronRight } from 'lucide-react-native';
+import { LogOut, ShieldCheck, Users, History, Banknote, MessageSquare, ChevronRight, Bell } from 'lucide-react-native';
 import { Colors } from '../../utils/colors';
 import type { FranchiseProfile } from '../../types';
 
@@ -239,7 +239,7 @@ export default function FranchiseProfileScreen() {
 
         {/* Feedback & Ratings */}
         <TouchableOpacity
-          style={[styles.menuRow, { borderBottomWidth: 0, paddingBottom: 0 }]}
+          style={styles.menuRow}
           onPress={() => navigation.navigate('Feedback')}
         >
           <View style={styles.menuLeft}>
@@ -247,6 +247,20 @@ export default function FranchiseProfileScreen() {
               <MessageSquare size={20} color="#f59e0b" />
             </View>
             <Text style={styles.menuText}>Feedback & Ratings</Text>
+          </View>
+          <ChevronRight size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* Notifications */}
+        <TouchableOpacity
+          style={[styles.menuRow, { borderBottomWidth: 0, paddingBottom: 0 }]}
+          onPress={() => navigation.navigate('Notifications')}
+        >
+          <View style={styles.menuLeft}>
+            <View style={[styles.menuIconBg, { backgroundColor: 'rgba(236,72,153,0.1)' }]}>
+              <Bell size={20} color="#ec4899" />
+            </View>
+            <Text style={styles.menuText}>Notifications</Text>
           </View>
           <ChevronRight size={18} color={Colors.textMuted} />
         </TouchableOpacity>

@@ -5,13 +5,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ShoppingCart, Package, Search, X as CloseIcon, Settings, Info } from 'lucide-react-native';
-import { partsAPI } from '../api';
+import { partsAPI, subscriptionAPI } from '../api';
 import { Colors } from '../utils/colors';
 import Card from '../components/Card';
 import Header from '../components/Header';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
-import type { SparePart, PartOrder } from '../types';
+import type { SparePart, PartOrder, Subscription } from '../types';
 
 const CATEGORIES = ['All', 'battery', 'motor', 'charger', 'tyre', 'brake', 'suspension', 'body', 'accessory', 'other'];
 
@@ -20,6 +20,7 @@ const SparePartsScreen: React.FC = () => {
   const [orders, setOrders] = useState<PartOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [tab, setTab] = useState<'parts' | 'orders'>('parts');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
@@ -30,9 +31,10 @@ const SparePartsScreen: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const [pRes, oRes] = await Promise.all([partsAPI.list(), partsAPI.myOrders()]);
+      const [pRes, oRes, subRes] = await Promise.all([partsAPI.list(), partsAPI.myOrders(), subscriptionAPI.list()]);
       setParts(pRes.data.parts || []);
       setOrders(oRes.data.orders || []);
+      setSubscriptions(subRes.data.subscriptions?.filter((s: Subscription) => s.status === 'active') || []);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
@@ -201,6 +203,15 @@ const SparePartsScreen: React.FC = () => {
           <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
             {orderModal && (
               <>
+                {subscriptions.length > 0 && (
+                  <View style={{ backgroundColor: 'rgba(34,197,94,0.1)', padding: 12, borderRadius: 10, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(34,197,94,0.3)', flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 18, marginRight: 10 }}>💎</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: Colors.success, fontWeight: '700', fontSize: 13 }}>Subscriber Benefits Enabled</Text>
+                      <Text style={{ color: Colors.success, fontSize: 11, marginTop: 2, opacity: 0.9 }}>You will receive special subscriber discounts on this order!</Text>
+                    </View>
+                  </View>
+                )}
                 <Text style={styles.orderPartName}>{orderModal.name}</Text>
                 <Text style={styles.orderPartPrice}>₹{orderModal.price.toLocaleString('en-IN')} per unit</Text>
                 <View style={styles.field}>
@@ -211,11 +222,26 @@ const SparePartsScreen: React.FC = () => {
                   <Text style={styles.fieldLabel}>Delivery Address *</Text>
                   <TextInput style={[styles.input, { height: 80 }]} multiline value={address} onChangeText={setAddress} placeholder="Full delivery address…" placeholderTextColor={Colors.textMuted} textAlignVertical="top" />
                 </View>
-                {qty && parseInt(qty) > 0 && (
-                  <Text style={styles.totalPreview}>
-                    Total: ₹{(orderModal.price * parseInt(qty)).toLocaleString('en-IN')}
-                  </Text>
-                )}
+                {qty && parseInt(qty) > 0 && (() => {
+                  const q = parseInt(qty);
+                  const total = orderModal.price * q;
+                  const hasSub = subscriptions.length > 0;
+                  const discount = hasSub ? total * 0.10 : 0;
+                  const finalTotal = total - discount;
+                  
+                  return (
+                    <View style={{ marginBottom: 12 }}>
+                      {hasSub && (
+                        <Text style={{ fontSize: 13, color: Colors.success, marginBottom: 4, fontWeight: '700' }}>
+                          10% Subscriber Discount: -₹{discount.toLocaleString('en-IN')}
+                        </Text>
+                      )}
+                      <Text style={styles.totalPreview}>
+                        Total: ₹{finalTotal.toLocaleString('en-IN')} {hasSub && <Text style={{ textDecorationLine: 'line-through', fontSize: 13, color: Colors.textMuted, fontWeight: 'normal' }}>₹{total.toLocaleString('en-IN')}</Text>}
+                      </Text>
+                    </View>
+                  );
+                })()}
                 <TouchableOpacity style={[styles.saveBtn, ordering && styles.saveBtnDisabled]} onPress={handleOrder} disabled={ordering}>
                   <Text style={styles.saveBtnText}>{ordering ? 'Placing Order…' : 'Confirm Order'}</Text>
                 </TouchableOpacity>

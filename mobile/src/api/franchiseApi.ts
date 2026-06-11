@@ -102,3 +102,10 @@ export const franchiseApi = {
   getUsers: () => apiClient.get<{ users: any[] }>('/admin/users'),
   getUserVehicles: (userId: string) => apiClient.get<{ vehicles: any[] }>(`/vehicles/user/${userId}`),
 };
+
+export const notificationsApi = {
+  list: () => apiClient.get<{ notifications: any[] }>('/notifications'),
+  getUnreadCount: () => apiClient.get<{ unreadCount: number }>('/notifications/unread-count'),
+  markAsRead: (id: string) => apiClient.put(`/notifications/${id}/read`),
+  markAllAsRead: () => apiClient.put('/notifications/read-all'),
+};

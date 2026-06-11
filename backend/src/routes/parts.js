@@ -108,27 +108,44 @@ router.put('/:id', protect, authorize('admin'), upload.any(), async (req, res, n
 // POST /api/parts/orders — place order
 router.post('/orders', protect, async (req, res, next) => {
   try {
-    const { items, shippingAddress } = req.body;
+    const { items, shippingAddress, part, quantity, deliveryAddress } = req.body;
+
+    let orderItems = items || [];
+    if (part && quantity) {
+      orderItems = [{ partId: part, quantity }];
+    }
+    
+    let addr = shippingAddress;
+    if (!addr && deliveryAddress) {
+      addr = { street: deliveryAddress };
+    }
 
     let totalAmount = 0;
-    for (const item of items) {
-      const part = await SparePart.findById(item.partId);
-      if (!part || !part.isAvailable || part.stock < item.quantity) {
+    for (const item of orderItems) {
+      const partDoc = await SparePart.findById(item.partId);
+      if (!partDoc || !partDoc.isAvailable || partDoc.stock < item.quantity) {
         return res.status(400).json({ success: false, message: `Part ${item.partId} not available` });
       }
-      totalAmount += part.price * item.quantity;
+      totalAmount += partDoc.price * item.quantity;
+    }
+
+    // Apply 10% discount if user has an active subscription
+    const Subscription = require('../models/Subscription');
+    const hasActiveSub = await Subscription.findOne({ user: req.user._id, status: 'active' });
+    if (hasActiveSub) {
+      totalAmount = totalAmount - (totalAmount * 0.10);
     }
 
     const order = await Order.create({
       user: req.user._id,
       items: await Promise.all(
-        items.map(async (item) => {
-          const part = await SparePart.findById(item.partId);
-          return { part: item.partId, quantity: item.quantity, price: part.price };
+        orderItems.map(async (item) => {
+          const partDoc = await SparePart.findById(item.partId);
+          return { part: item.partId, quantity: item.quantity, price: partDoc.price };
         })
       ),
       totalAmount,
-      shippingAddress,
+      shippingAddress: addr,
     });
 
     const Notification = require('../models/Notification');

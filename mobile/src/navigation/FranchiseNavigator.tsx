@@ -23,6 +23,7 @@ import FranchiseFeedbackScreen from '../screens/franchise/FranchiseFeedbackScree
 import FranchiseProfileScreen from '../screens/franchise/FranchiseProfileScreen';
 import FranchiseBookingDetailsScreen from '../screens/franchise/FranchiseBookingDetailsScreen';
 import FranchiseSubscriptionsScreen from '../screens/franchise/FranchiseSubscriptionsScreen';
+import FranchiseNotificationsScreen from '../screens/franchise/FranchiseNotificationsScreen';
 
 // ── Param lists ───────────────────────────────────────────────────────────────
 export type FranchiseTabParamList = {
@@ -46,6 +47,7 @@ export type FranchiseMoreStackParamList = {
   Feedback: undefined;
   Profile: undefined;
   Subscriptions: undefined;
+  Notifications: undefined;
 };
 
 // ── Tab icon component ────────────────────────────────────────────────────────
@@ -151,6 +153,11 @@ function MoreNavigator() {
         name="Subscriptions"
         component={FranchiseSubscriptionsScreen}
         options={{ title: 'Subscriptions' }}
+      />
+      <MoreStack.Screen
+        name="Notifications"
+        component={FranchiseNotificationsScreen}
+        options={{ title: 'Notifications' }}
       />
     </MoreStack.Navigator>
   );

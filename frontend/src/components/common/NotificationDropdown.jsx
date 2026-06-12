@@ -6,13 +6,23 @@ import { useAuth } from '../../context/AuthContext';
 export default function NotificationDropdown() {
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, socket } = useAuth();
 
   useEffect(() => {
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 60000);
-    return () => clearInterval(interval);
-  }, []);
+
+    if (socket) {
+      socket.on('new_notification', () => {
+        setUnreadCount(prev => prev + 1);
+      });
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (socket) socket.off('new_notification');
+    };
+  }, [socket]);
 
   const fetchUnreadCount = async () => {
     try {

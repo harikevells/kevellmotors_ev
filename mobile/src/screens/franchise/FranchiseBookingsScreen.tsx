@@ -57,6 +57,8 @@ function InvoiceEditorModal({ visible, booking, saving, title, onClose, onConfir
   const [serviceCharge, setServiceCharge] = useState('');
   const [parts, setParts] = useState<InvoicePartRow[]>([{ id: 'row-0', description: '', amount: '' }]);
   const [notes, setNotes] = useState('');
+  const [partPickerOpenFor, setPartPickerOpenFor] = useState<number | null>(null);
+  const [customerParts, setCustomerParts] = useState<{ name: string; price: number }[]>([]);
 
   useEffect(() => {
     if (!visible || !booking) return;
@@ -69,6 +71,16 @@ function InvoiceEditorModal({ visible, booking, saving, title, onClose, onConfir
         : [{ id: 'row-0', description: '', amount: '' }],
     );
     setNotes(booking.technicianNotes ?? '');
+
+    if (booking.owner?._id) {
+      franchiseApi.getCustomerOrders(booking.owner._id).then(res => {
+        const partsList = res.data.orders.flatMap((o: any) => o.items.map((i: any) => ({ name: i.part?.name, price: i.price })));
+        const uniqueParts = partsList.filter((p: any, index: number, self: any[]) => p.name && index === self.findIndex(t => t.name === p.name));
+        setCustomerParts(uniqueParts);
+      }).catch(err => console.log('Failed to fetch orders:', err));
+    } else {
+      setCustomerParts([]);
+    }
   }, [visible, booking]);
 
   const updatePart = (index: number, key: 'description' | 'amount', value: string) => {
@@ -81,9 +93,20 @@ function InvoiceEditorModal({ visible, booking, saving, title, onClose, onConfir
   };
 
   const validParts = parts.filter((part) => part.description.trim() && Number(part.amount) > 0);
-  const total =
-    (Number(serviceCharge) || 0) +
-    validParts.reduce((sum, part) => sum + (Number(part.amount) || 0), 0);
+  
+  const activeSub = booking?.activeSubscription;
+  const plan = activeSub?.planDetail;
+  const svcDiscount = plan?.serviceDiscount || 0;
+  const partDiscount = plan?.sparePartsDiscount || 0;
+
+  const grossService = Number(serviceCharge) || 0;
+  const grossParts = validParts.reduce((sum, part) => sum + (Number(part.amount) || 0), 0);
+  
+  const discountService = grossService * (svcDiscount / 100);
+  const discountParts = grossParts * (partDiscount / 100);
+  
+  const totalDiscount = discountService + discountParts;
+  const total = grossService + grossParts - totalDiscount;
 
   const handleSubmit = () => {
     if (!booking) return;
@@ -151,13 +174,21 @@ function InvoiceEditorModal({ visible, booking, saving, title, onClose, onConfir
 
               {parts.map((part, index) => (
                 <View key={part.id} style={styles.partRow}>
-                  <TextInput
-                    style={[styles.input, styles.partNameInput]}
-                    placeholder="Part / Item name"
-                    placeholderTextColor={Colors.textMuted}
-                    value={part.description}
-                    onChangeText={(value) => updatePart(index, 'description', value)}
-                  />
+                  <View style={{ flex: 1.4, position: 'relative', justifyContent: 'center' }}>
+                    <TextInput
+                      style={[styles.input, { paddingRight: 36 }]}
+                      placeholder="Part / Item name"
+                      placeholderTextColor={Colors.textMuted}
+                      value={part.description}
+                      onChangeText={(value) => updatePart(index, 'description', value)}
+                    />
+                    <TouchableOpacity
+                      style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 36, alignItems: 'center', justifyContent: 'center' }}
+                      onPress={() => setPartPickerOpenFor(index)}
+                    >
+                      <Text style={{ color: Colors.textMuted, fontSize: 12 }}>▼</Text>
+                    </TouchableOpacity>
+                  </View>
                   <TextInput
                     style={[styles.input, styles.partAmountInput]}
                     placeholder="Amount"
@@ -184,6 +215,35 @@ function InvoiceEditorModal({ visible, booking, saving, title, onClose, onConfir
                 onChangeText={setNotes}
               />
 
+              <View style={styles.breakdownContainer}>
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Service / Labour Charge</Text>
+                  <Text style={styles.breakdownValue}>{formatINR(grossService)}</Text>
+                </View>
+                {grossParts > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Spare Parts / Additional</Text>
+                    <Text style={styles.breakdownValue}>{formatINR(grossParts)}</Text>
+                  </View>
+                )}
+                
+                {activeSub ? (
+                  <View style={styles.subscriptionBox}>
+                    <Text style={{ color: Colors.cyan, fontWeight: '700', marginBottom: 4 }}>
+                      Active Subscription: {plan?.name || 'Custom Plan'}
+                    </Text>
+                    {svcDiscount > 0 && <Text style={{ color: Colors.textMuted, fontSize: 13 }}>• Service Discount: {svcDiscount}% (-{formatINR(discountService)})</Text>}
+                    {partDiscount > 0 && <Text style={{ color: Colors.textMuted, fontSize: 13 }}>• Spare Parts Discount: {partDiscount}% (-{formatINR(discountParts)})</Text>}
+                    {totalDiscount > 0 && (
+                      <View style={[styles.breakdownRow, { marginTop: 8, marginBottom: 0 }]}>
+                        <Text style={[styles.breakdownLabel, { color: Colors.green, fontWeight: '700' }]}>Total Discount Applied</Text>
+                        <Text style={[styles.breakdownValue, { color: Colors.green, fontWeight: '700' }]}>-{formatINR(totalDiscount)}</Text>
+                      </View>
+                    )}
+                  </View>
+                ) : null}
+              </View>
+
               <View style={styles.totalBox}>
                 <Text style={styles.totalLabel}>Total Invoice Amount</Text>
                 <Text style={styles.totalAmount}>{formatINR(total)}</Text>
@@ -206,6 +266,41 @@ function InvoiceEditorModal({ visible, booking, saving, title, onClose, onConfir
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
+
+      {partPickerOpenFor !== null && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }]}>
+          <View style={[styles.modalCard, { width: 300, maxHeight: 450 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Spare Part</Text>
+            </View>
+            <FlatList
+              data={customerParts}
+              keyExtractor={(item) => item.name}
+              ListEmptyComponent={() => (
+                <Text style={{ color: Colors.textMuted, textAlign: 'center', padding: 20 }}>
+                  Customer has no recent orders.
+                </Text>
+              )}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, flexDirection: 'row', justifyContent: 'space-between' }}
+                  onPress={() => {
+                    updatePart(partPickerOpenFor, 'description', item.name);
+                    updatePart(partPickerOpenFor, 'amount', String(item.price));
+                    setPartPickerOpenFor(null);
+                  }}
+                >
+                  <Text style={{ color: Colors.textPrimary, fontSize: 14 }}>{item.name}</Text>
+                  <Text style={{ color: Colors.textMuted, fontSize: 13 }}>{formatINR(item.price)}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity style={{ padding: 14, alignItems: 'center' }} onPress={() => setPartPickerOpenFor(null)}>
+              <Text style={{ color: Colors.cyan, fontWeight: '700' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </Modal>
   );
 }
@@ -222,6 +317,37 @@ function InvoiceViewModal({ visible, booking, onClose }: InvoiceViewModalProps) 
   if (!booking) return null;
   const items = booking.invoiceItems ?? [];
   const total = booking.finalAmount ?? items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+  const activeSub = booking.activeSubscription;
+  const plan = activeSub?.planDetail;
+  const svcDiscount = plan?.serviceDiscount || 0;
+  const partDiscount = plan?.sparePartsDiscount || 0;
+
+  let grossService = 0;
+  let grossParts = 0;
+  let totalDiscount = 0;
+  let discountService = 0;
+  let discountParts = 0;
+
+  const displayItems = items.map(item => {
+    let amt = Number(item.amount) || 0;
+    let orig = amt;
+    let desc = item.description;
+    const match = item.description.match(/(.*?)\s*\(-(\d+)%\)$/);
+    if (match) {
+      desc = match[1];
+      const pct = Number(match[2]);
+      orig = Math.round(amt / (1 - pct / 100));
+      const discAmt = orig - amt;
+      totalDiscount += discAmt;
+      if (item.type === 'service') discountService += discAmt;
+      else discountParts += discAmt;
+    }
+    if (item.type === 'service') grossService += orig;
+    else grossParts += orig;
+    
+    return { ...item, cleanDescription: desc, originalAmount: orig, isDiscounted: !!match };
+  });
 
   const handleExportPdf = async () => {
     try {
@@ -288,22 +414,62 @@ function InvoiceViewModal({ visible, booking, onClose }: InvoiceViewModalProps) 
               </Text>
             </View>
 
-            {items.length === 0 ? (
+            {displayItems.length === 0 ? (
               <Text style={styles.emptyInvoiceText}>No invoice line items recorded.</Text>
             ) : (
-              items.map((item, index) => (
-                <View key={`${index}-${item.description}`} style={styles.invoiceRow}>
+              displayItems.map((item, index) => (
+                <View key={`${index}-${item.cleanDescription}`} style={styles.invoiceRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.invoiceItemName}>{item.description}</Text>
+                    <Text style={styles.invoiceItemName}>{item.cleanDescription}</Text>
                     <Text style={styles.invoiceItemType}>{item.type ?? 'item'}</Text>
                   </View>
-                  <Text style={styles.invoiceItemAmount}>{formatINR(item.amount)}</Text>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    {item.isDiscounted && (
+                      <Text style={{ fontSize: 11, color: Colors.textMuted, textDecorationLine: 'line-through', marginBottom: 2 }}>
+                        {formatINR(item.originalAmount)}
+                      </Text>
+                    )}
+                    <Text style={styles.invoiceItemAmount}>{formatINR(item.amount)}</Text>
+                  </View>
                 </View>
               ))
             )}
 
-            <View style={styles.invoiceTotalRow}>
-              <Text style={styles.totalLabel}>Total</Text>
+            <View style={styles.breakdownContainer}>
+              <View style={styles.breakdownRow}>
+                <Text style={styles.breakdownLabel}>Service / Labour Total</Text>
+                <Text style={styles.breakdownValue}>{formatINR(grossService)}</Text>
+              </View>
+              {grossParts > 0 && (
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Spare Parts Total</Text>
+                  <Text style={styles.breakdownValue}>{formatINR(grossParts)}</Text>
+                </View>
+              )}
+              {activeSub ? (
+                <View style={styles.subscriptionBox}>
+                  <Text style={{ color: Colors.cyan, fontWeight: '700', marginBottom: 4 }}>
+                    Active Subscription: {plan?.name || 'Custom Plan'}
+                  </Text>
+                  {svcDiscount > 0 && <Text style={{ color: Colors.textMuted, fontSize: 13 }}>• Service Discount: {svcDiscount}% (-{formatINR(discountService)})</Text>}
+                  {partDiscount > 0 && <Text style={{ color: Colors.textMuted, fontSize: 13 }}>• Spare Parts Discount: {partDiscount}% (-{formatINR(discountParts)})</Text>}
+                  {totalDiscount > 0 && (
+                    <View style={[styles.breakdownRow, { marginTop: 8, marginBottom: 0 }]}>
+                      <Text style={[styles.breakdownLabel, { color: Colors.green, fontWeight: '700' }]}>Total Discount</Text>
+                      <Text style={[styles.breakdownValue, { color: Colors.green, fontWeight: '700' }]}>-{formatINR(totalDiscount)}</Text>
+                    </View>
+                  )}
+                </View>
+              ) : totalDiscount > 0 ? (
+                <View style={[styles.breakdownRow, { marginTop: 4, marginBottom: 0 }]}>
+                  <Text style={[styles.breakdownLabel, { color: Colors.green, fontWeight: '700' }]}>Total Discount</Text>
+                  <Text style={[styles.breakdownValue, { color: Colors.green, fontWeight: '700' }]}>-{formatINR(totalDiscount)}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={[styles.totalBox, { marginTop: 4 }]}>
+              <Text style={styles.totalLabel}>Total Invoice Amount</Text>
               <Text style={styles.totalAmount}>{formatINR(total)}</Text>
             </View>
 
@@ -940,6 +1106,33 @@ const styles = StyleSheet.create({
   },
   totalLabel: { color: Colors.green, fontWeight: '700' },
   totalAmount: { color: Colors.green, fontSize: 20, fontWeight: '800' },
+  breakdownContainer: {
+    marginTop: 16,
+    paddingHorizontal: 4,
+    marginBottom: 8,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  breakdownLabel: {
+    color: Colors.textSecondary,
+    fontSize: 14,
+  },
+  breakdownValue: {
+    color: Colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  subscriptionBox: {
+    backgroundColor: 'rgba(0, 229, 255, 0.05)',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.1)',
+  },
 
   modalActions: {
     padding: 14,

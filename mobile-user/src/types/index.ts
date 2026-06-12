@@ -79,6 +79,9 @@ export interface SubscriptionPlan {
   highlights: string[]; // Changed from features to highlights
   features?: string[];  // Keep for compatibility
   badge?: string;       // Added optional badge
+  targetBrand?: string; // Target vehicle brand
+  serviceDiscount?: number;
+  sparePartsDiscount?: number;
   isActive: boolean;
 }
 
@@ -110,12 +113,21 @@ export interface SparePart {
 
 export interface PartOrder {
   _id: string;
-  part: SparePart;
-  quantity: number;
-  totalPrice: number;
+  items: Array<{
+    part: SparePart;
+    quantity: number;
+    price: number;
+  }>;
+  totalAmount: number;
+  appliedSubscription?: Subscription;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
   createdAt: string;
-  deliveryAddress?: string;
+  shippingAddress?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
 }
 
 export interface Payment {

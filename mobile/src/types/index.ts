@@ -93,6 +93,7 @@ export interface Booking {
   technicianNotes?: string;
   voiceNote?: string;
   jobCard?: JobCard;
+  activeSubscription?: any;
 }
 
 export interface WalletTransaction {

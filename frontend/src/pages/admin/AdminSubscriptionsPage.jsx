@@ -11,7 +11,7 @@ const card = { background: '#0d0e2b', border: '1px solid rgba(255,255,255,0.06)'
 const inp  = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '.55rem .85rem', color: '#e2e8f0', fontSize: '.85rem', outline: 'none', width: '100%', boxSizing: 'border-box' };
 const lbl  = { fontSize: '.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.06em', display: 'block', marginBottom: '.3rem' };
 
-const EMPTY_FORM = { name: '', key: '', amount: '', duration: '', services: '', badge: '', highlights: '', isActive: true, sortOrder: '' };
+const EMPTY_FORM = { name: '', key: '', amount: '', duration: '', services: '', badge: '', targetBrand: 'All', highlights: '', isActive: true, sortOrder: '', sparePartsDiscount: '', serviceDiscount: '' };
 
 const STATUS_COLOR = {
   active:    { bg: 'rgba(74,222,128,.1)',   color: '#4ade80' },
@@ -79,12 +79,28 @@ function PlanCard({ plan, onEdit, onToggle, onDelete, isAllowedPlanManage }) {
         </div>
         <div>
           <div style={{ ...lbl }}>Duration</div>
-          <div style={{ fontSize: '.95rem', color: '#94a3b8' }}>{plan.duration} days</div>
+          <div style={{ fontSize: '.95rem', color: '#e2e8f0', fontWeight: 600 }}>{plan.duration} days</div>
+        </div>
+        <div>
+          <div style={{ ...lbl }}>Target Brand</div>
+          <div style={{ fontSize: '.95rem', color: '#e2e8f0', fontWeight: 600 }}>{plan.targetBrand || 'All'}</div>
         </div>
         <div>
           <div style={{ ...lbl }}>Services</div>
           <div style={{ fontSize: '.95rem', color: '#94a3b8' }}>{plan.services} included</div>
         </div>
+        {plan.sparePartsDiscount > 0 && (
+          <div>
+            <div style={{ ...lbl }}>Parts Discount</div>
+            <div style={{ fontSize: '.95rem', color: '#10b981', fontWeight: 600 }}>{plan.sparePartsDiscount}% Off</div>
+          </div>
+        )}
+        {plan.serviceDiscount > 0 && (
+          <div>
+            <div style={{ ...lbl }}>Service Discount</div>
+            <div style={{ fontSize: '.95rem', color: '#10b981', fontWeight: 600 }}>{plan.serviceDiscount}% Off</div>
+          </div>
+        )}
         {plan.sortOrder !== undefined && (
           <div>
             <div style={{ ...lbl }}>Order</div>
@@ -132,6 +148,9 @@ function PlanFormModal({ initial, onSave, onClose, saving }) {
       duration: Number(form.duration),
       services: Number(form.services),
       badge: form.badge.trim(),
+      targetBrand: form.targetBrand.trim() || 'All',
+      sparePartsDiscount: form.sparePartsDiscount ? Number(form.sparePartsDiscount) : 0,
+      serviceDiscount: form.serviceDiscount ? Number(form.serviceDiscount) : 0,
       highlights: form.highlights.split('\n').map(h => h.trim()).filter(Boolean),
       isActive: form.isActive,
       sortOrder: form.sortOrder !== '' ? Number(form.sortOrder) : 0,
@@ -148,7 +167,18 @@ function PlanFormModal({ initial, onSave, onClose, saving }) {
         </div>
         {err && <div style={{ marginBottom: '1rem', padding: '.6rem .85rem', background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 8, color: '#f87171', fontSize: '.82rem' }}>{err}</div>}
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.85rem', marginBottom: '.85rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <label style={lbl}>Badge (Optional)</label>
+              <input style={inp} value={form.badge} onChange={e => set('badge', e.target.value)} placeholder="e.g. Most Popular" />
+            </div>
+            <div>
+              <label style={lbl}>Target Brand</label>
+              <input style={inp} value={form.targetBrand} onChange={e => set('targetBrand', e.target.value)} placeholder="e.g. Tata Motors, Ola, or All" />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
             <div>
               <label style={lbl}>Plan Name *</label>
               <input style={inp} value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Monthly" />
@@ -172,6 +202,14 @@ function PlanFormModal({ initial, onSave, onClose, saving }) {
             <div>
               <label style={lbl}>Badge (optional)</label>
               <input style={inp} value={form.badge} onChange={e => set('badge', e.target.value)} placeholder="Most Popular" />
+            </div>
+            <div>
+              <label style={lbl}>Spare Parts Discount (%)</label>
+              <input style={inp} type="number" min="0" max="100" value={form.sparePartsDiscount} onChange={e => set('sparePartsDiscount', e.target.value)} placeholder="10" />
+            </div>
+            <div>
+              <label style={lbl}>Service Discount (%)</label>
+              <input style={inp} type="number" min="0" max="100" value={form.serviceDiscount} onChange={e => set('serviceDiscount', e.target.value)} placeholder="15" />
             </div>
             <div>
               <label style={lbl}>Sort Order</label>

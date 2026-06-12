@@ -27,6 +27,7 @@ const SparePartsScreen: React.FC = () => {
   const [orderModal, setOrderModal] = useState<SparePart | null>(null);
   const [qty, setQty] = useState('1');
   const [address, setAddress] = useState('');
+  const [appliedSubscription, setAppliedSubscription] = useState('');
   const [ordering, setOrdering] = useState(false);
 
   const load = useCallback(async () => {
@@ -47,7 +48,7 @@ const SparePartsScreen: React.FC = () => {
     if (!quantity || quantity < 1) { Alert.alert('Invalid', 'Enter a valid quantity.'); return; }
     setOrdering(true);
     try {
-      await partsAPI.placeOrder({ part: orderModal!._id, quantity, deliveryAddress: address.trim() });
+      await partsAPI.placeOrder({ part: orderModal!._id, quantity, deliveryAddress: address.trim(), appliedSubscription });
       setOrderModal(null); setQty('1'); setAddress('');
       setTab('orders'); load();
     } catch (err: any) {
@@ -152,7 +153,7 @@ const SparePartsScreen: React.FC = () => {
                       </Text>
                       <TouchableOpacity
                         style={[styles.orderBtn, p.stock === 0 && styles.orderBtnDisabled]}
-                        onPress={() => { setOrderModal(p); setQty('1'); setAddress(''); }}
+                        onPress={() => { setOrderModal(p); setQty('1'); setAddress(''); setAppliedSubscription(subscriptions.length > 0 ? subscriptions[0]._id : ''); }}
                         disabled={p.stock === 0}
                       >
                         <Text style={styles.orderBtnText}>Order</Text>
@@ -175,19 +176,49 @@ const SparePartsScreen: React.FC = () => {
               </View>
             </Card>
           ) : (
-            orders.map((o) => (
-              <Card key={o._id}>
-                <View style={styles.orderRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.partName}>{o.part?.name}</Text>
-                    <Text style={styles.partMeta}>Qty: {o.quantity} × ₹{o.part?.price?.toLocaleString('en-IN')}</Text>
-                    <Text style={styles.orderTotal}>Total: ₹{o.totalPrice?.toLocaleString('en-IN')}</Text>
-                    <Text style={styles.orderDate}>{new Date(o.createdAt).toLocaleDateString('en-IN')}</Text>
+            orders.map((o) => {
+              const firstItem = o.items && o.items.length > 0 ? o.items[0] : null;
+              const extraCount = o.items ? o.items.length - 1 : 0;
+              const originalTotal = o.items ? o.items.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0) : o.totalAmount;
+              const hasDiscount = originalTotal > o.totalAmount;
+              const subPlan = o.appliedSubscription?.plan as any;
+              const subName = subPlan?.name || 'Subscription';
+              let pDiscount = subPlan?.sparePartsDiscount || 0;
+              
+              if (hasDiscount && pDiscount === 0 && originalTotal > 0) {
+                pDiscount = Math.round(((originalTotal - o.totalAmount) / originalTotal) * 100);
+              }
+              
+              return (
+                <Card key={o._id}>
+                  <View style={styles.orderRow}>
+                    <View style={{ flex: 1 }}>
+                      {firstItem && (
+                        <>
+                          <Text style={styles.partName}>{firstItem.part?.name} {extraCount > 0 ? `+ ${extraCount} more` : ''}</Text>
+                          <Text style={styles.partMeta}>Qty: {firstItem.quantity} × ₹{firstItem.price?.toLocaleString('en-IN')}</Text>
+                        </>
+                      )}
+                      
+                      {hasDiscount && (
+                        <View style={{ marginTop: 6, backgroundColor: 'rgba(34,197,94,0.1)', alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          <Text style={{ color: Colors.success, fontSize: 10, fontWeight: '700' }}>{subName} ({pDiscount}% Off)</Text>
+                        </View>
+                      )}
+                      
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: 4 }}>
+                        <Text style={styles.orderTotal}>Total: ₹{o.totalAmount?.toLocaleString('en-IN')}</Text>
+                        {hasDiscount && (
+                          <Text style={{ textDecorationLine: 'line-through', fontSize: 11, color: Colors.textMuted, marginBottom: 1 }}>₹{originalTotal.toLocaleString('en-IN')}</Text>
+                        )}
+                      </View>
+                      <Text style={styles.orderDate}>{new Date(o.createdAt).toLocaleDateString('en-IN')}</Text>
+                    </View>
+                    <StatusBadge status={o.status} size="md" />
                   </View>
-                  <StatusBadge status={o.status} size="md" />
-                </View>
-              </Card>
-            ))
+                </Card>
+              );
+            })
           )}
         </ScrollView>
       )}
@@ -204,12 +235,37 @@ const SparePartsScreen: React.FC = () => {
             {orderModal && (
               <>
                 {subscriptions.length > 0 && (
-                  <View style={{ backgroundColor: 'rgba(34,197,94,0.1)', padding: 12, borderRadius: 10, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(34,197,94,0.3)', flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 18, marginRight: 10 }}>💎</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.success, fontWeight: '700', fontSize: 13 }}>Subscriber Benefits Enabled</Text>
-                      <Text style={{ color: Colors.success, fontSize: 11, marginTop: 2, opacity: 0.9 }}>You will receive special subscriber discounts on this order!</Text>
-                    </View>
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={styles.fieldLabel}>Select Subscription for Discount</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16 }}>
+                      {subscriptions.map(sub => {
+                        const planObj = typeof sub.plan === 'object' && sub.plan ? sub.plan : null;
+                        const planName = planObj ? planObj.name : (sub.plan || 'Plan');
+                        const pDiscount = (planObj as any)?.sparePartsDiscount || 0;
+                        const isSelected = appliedSubscription === sub._id;
+                        
+                        return (
+                          <TouchableOpacity
+                            key={sub._id}
+                            style={[styles.planCardSmall, isSelected && { borderColor: Colors.success, backgroundColor: 'rgba(34,197,94,0.15)' }]}
+                            onPress={() => setAppliedSubscription(sub._id)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.planTitleSmall} numberOfLines={1}>{planName}</Text>
+                            {sub.vehicle ? <Text style={{ fontSize: 10, color: Colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{sub.vehicle.make} {sub.vehicle.model}</Text> : null}
+                            {pDiscount > 0 ? (
+                              <Text style={{ color: Colors.success, fontSize: 10, fontWeight: '700', marginTop: 4 }}>{pDiscount}% Parts Off</Text>
+                            ) : null}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                              <View style={{ width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: isSelected ? Colors.success : Colors.textMuted, backgroundColor: isSelected ? Colors.success : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
+                                {isSelected && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' }} />}
+                              </View>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: isSelected ? Colors.success : Colors.textMuted }}>{isSelected ? 'Applied' : 'Select'}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </ScrollView>
                   </View>
                 )}
                 <Text style={styles.orderPartName}>{orderModal.name}</Text>
@@ -222,22 +278,23 @@ const SparePartsScreen: React.FC = () => {
                   <Text style={styles.fieldLabel}>Delivery Address *</Text>
                   <TextInput style={[styles.input, { height: 80 }]} multiline value={address} onChangeText={setAddress} placeholder="Full delivery address…" placeholderTextColor={Colors.textMuted} textAlignVertical="top" />
                 </View>
-                {qty && parseInt(qty) > 0 && (() => {
-                  const q = parseInt(qty);
+                {qty && parseInt(qty, 10) > 0 && (() => {
+                  const q = parseInt(qty, 10);
                   const total = orderModal.price * q;
-                  const hasSub = subscriptions.length > 0;
-                  const discount = hasSub ? total * 0.10 : 0;
+                  const activeSub = subscriptions.find(s => s._id === appliedSubscription);
+                  const planDiscount = (activeSub?.plan as any)?.sparePartsDiscount || 0;
+                  const discount = (total * planDiscount) / 100;
                   const finalTotal = total - discount;
                   
                   return (
                     <View style={{ marginBottom: 12 }}>
-                      {hasSub && (
+                      {planDiscount > 0 && (
                         <Text style={{ fontSize: 13, color: Colors.success, marginBottom: 4, fontWeight: '700' }}>
-                          10% Subscriber Discount: -₹{discount.toLocaleString('en-IN')}
+                          {planDiscount}% Subscriber Discount: -₹{discount.toLocaleString('en-IN')}
                         </Text>
                       )}
                       <Text style={styles.totalPreview}>
-                        Total: ₹{finalTotal.toLocaleString('en-IN')} {hasSub && <Text style={{ textDecorationLine: 'line-through', fontSize: 13, color: Colors.textMuted, fontWeight: 'normal' }}>₹{total.toLocaleString('en-IN')}</Text>}
+                        Total: ₹{finalTotal.toLocaleString('en-IN')} {planDiscount > 0 && <Text style={{ textDecorationLine: 'line-through', fontSize: 13, color: Colors.textMuted, fontWeight: 'normal' }}>₹{total.toLocaleString('en-IN')}</Text>}
                       </Text>
                     </View>
                   );
@@ -318,6 +375,8 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: Colors.primary, borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 8 },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  planCardSmall: { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(0,229,255,0.2)', borderRadius: 12, padding: 12, marginRight: 12, width: 140 },
+  planTitleSmall: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
 });
 
 export default SparePartsScreen;

@@ -43,7 +43,7 @@ const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await notificationsAPI.markAsRead(id);
       setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
+        prev.map((n) => (n._id === id ? { ...n, read: true } : n))
       );
     } catch (error) {
       console.error(error);
@@ -53,7 +53,7 @@ const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const handleMarkAllAsRead = async () => {
     try {
       await notificationsAPI.markAllAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       Alert.alert('Success', 'All notifications marked as read');
     } catch (error) {
       console.error(error);
@@ -73,9 +73,9 @@ const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
 
   const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity
-      style={[styles.card, !item.isRead && styles.unreadCard]}
+      style={[styles.card, !item.read && styles.unreadCard]}
       onPress={() => {
-        if (!item.isRead) handleMarkAsRead(item._id);
+        if (!item.read) handleMarkAsRead(item._id);
         
         if (item.link) {
           if (item.link.includes('bookings') || item.link.includes('services')) navigation.navigate('Services' as any);
@@ -92,15 +92,15 @@ const NotificationsScreen: React.FC<Props> = ({ navigation }) => {
         }
       }}
     >
-      <View style={[styles.iconContainer, !item.isRead && { backgroundColor: Colors.primary + '20' }]}>
-        <Icon name={getIconForType(item.type)} size={20} color={!item.isRead ? Colors.primary : Colors.textMuted} />
+      <View style={[styles.iconContainer, !item.read && { backgroundColor: Colors.primary + '20' }]}>
+        <Icon name={getIconForType(item.type)} size={20} color={!item.read ? Colors.primary : Colors.textMuted} />
       </View>
       <View style={styles.cardContent}>
-        <Text style={[styles.title, !item.isRead && styles.unreadText]}>{item.title}</Text>
+        <Text style={[styles.title, !item.read && styles.unreadText]}>{item.title}</Text>
         <Text style={styles.message}>{item.message}</Text>
         <Text style={styles.date}>{new Date(item.createdAt).toLocaleString()}</Text>
       </View>
-      {!item.isRead && <View style={styles.unreadDot} />}
+      {!item.read && <View style={styles.unreadDot} />}
     </TouchableOpacity>
   );
 

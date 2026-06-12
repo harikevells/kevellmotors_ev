@@ -63,6 +63,9 @@ export const franchiseApi = {
   /** GET /franchise/customers */
   getCustomers: () => apiClient.get<{ customers: Customer[] }>('/franchise/customers'),
 
+  /** GET /franchise/customers/:id/orders */
+  getCustomerOrders: (id: string) => apiClient.get<{ orders: any[] }>(`/franchise/customers/${id}/orders`),
+
   /** GET /franchise/history */
   getHistory: (params?: { period?: 'today' | 'week' | 'month' }) =>
     apiClient.get<{ history: Booking[] }>('/franchise/history', { params }),

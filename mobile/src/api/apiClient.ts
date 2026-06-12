@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Update to your production URL before release
 import { Platform } from 'react-native';
 export const BASE_URL = __DEV__
-  ? Platform.OS === 'android' ? 'http://10.10.11.90:5000/api' : 'http://localhost:5000/api'
+  ? 'http://localhost:5000/api'
   : 'https://your-production-domain.com/api';
 
 // ── Axios instance ────────────────────────────────────────────────────────────

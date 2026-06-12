@@ -5,13 +5,13 @@ import {
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { serviceAPI, vehicleAPI, franchiseAPI, subscriptionAPI } from '../api';
+import { serviceAPI, vehicleAPI, franchiseAPI, subscriptionAPI, paymentAPI } from '../api';
 import { Colors } from '../utils/colors';
 import Card from '../components/Card';
 import Header from '../components/Header';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
-import type { Service, Vehicle, Franchise, Subscription } from '../types';
+import type { Service, Vehicle, Franchise, Subscription, SubscriptionPlan } from '../types';
 import { Wrench, MapPin, Clock } from 'lucide-react-native';
 
 const SERVICE_TYPES = ['general', 'battery', 'motor', 'software', 'accident', 'amc', 'custom'];
@@ -22,11 +22,12 @@ const ServicesScreen: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [franchises, setFranchises] = useState<Franchise[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [bookModal, setBookModal] = useState(false);
   const [detailModal, setDetailModal] = useState<Service | null>(null);
-  const [form, setForm] = useState({ vehicle: '', serviceType: 'general', description: '', franchise: '', scheduledDate: '', pickupRequested: false });
+  const [form, setForm] = useState({ vehicle: '', serviceType: 'general', description: '', franchise: '', scheduledDate: '', pickupRequested: false, appliedSubscription: '' });
   const [saving, setSaving] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [nearbyFranchises, setNearbyFranchises] = useState<Franchise[] | null>(null);
@@ -70,7 +71,7 @@ const ServicesScreen: React.FC = () => {
           async (position) => {
             try {
               const { latitude, longitude } = position.coords;
-              const res = await franchiseAPI.nearby(latitude, longitude, 500);
+              const res = await franchiseAPI.nearby(latitude, longitude, 50000);
               setNearbyFranchises(res.data.franchises || []);
             } catch (err) {
               setNearbyFranchises(null);
@@ -96,13 +97,14 @@ const ServicesScreen: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const [sRes, vRes, fRes, subRes] = await Promise.all([
-        serviceAPI.list(), vehicleAPI.list(), franchiseAPI.listActive(), subscriptionAPI.list(),
+      const [sRes, vRes, fRes, subRes, plansRes] = await Promise.all([
+        serviceAPI.list(), vehicleAPI.list(), franchiseAPI.listActive(), subscriptionAPI.list(), subscriptionAPI.getPlans()
       ]);
       setServices(sRes.data.services || []);
       setVehicles(vRes.data.vehicles || []);
       setFranchises(fRes.data.franchises || []);
       setSubscriptions(subRes.data.subscriptions?.filter((s: Subscription) => s.status === 'active') || []);
+      setPlans(plansRes.data.plans || []);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
@@ -118,11 +120,32 @@ const ServicesScreen: React.FC = () => {
     try {
       await serviceAPI.create(form);
       setBookModal(false);
-      setForm({ vehicle: '', serviceType: 'general', description: '', franchise: '', scheduledDate: '', pickupRequested: false });
+      setForm({ vehicle: '', serviceType: 'general', description: '', franchise: '', scheduledDate: '', pickupRequested: false, appliedSubscription: '' });
       load();
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to book service');
     } finally { setSaving(false); }
+  };
+
+  const handleSubscribe = async (plan: SubscriptionPlan, vehicleObj: Vehicle) => {
+    setSaving(true);
+    try {
+      const subRes = await subscriptionAPI.create({ planId: plan._id, vehicleId: vehicleObj._id });
+      const subId = subRes.data.subscription._id;
+      const orderRes = await paymentAPI.createOrder({ amount: plan.amount, paymentFor: 'subscription', referenceId: subId });
+      await paymentAPI.verify({
+        razorpayOrderId: orderRes.data.orderId,
+        razorpayPaymentId: 'mock_pay_' + Date.now(),
+        razorpaySignature: 'mock',
+        paymentDbId: orderRes.data.paymentId,
+      });
+      Alert.alert('🎉 Subscribed!', `Successfully subscribed to ${plan.name}. You can now proceed with booking!`);
+      load(); // Reloads active subscriptions
+    } catch (err: any) {
+      Alert.alert('Failed', err.response?.data?.message || 'Could not process subscription.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const progressPercent = (status: string) => {
@@ -191,23 +214,85 @@ const ServicesScreen: React.FC = () => {
             <Text style={styles.fieldLabel}>Select Vehicle *</Text>
             <View style={styles.chipRow}>
               {vehicles.map((v) => (
-                <TouchableOpacity key={v._id} style={[styles.chip, form.vehicle === v._id && styles.chipActive]} onPress={() => setForm(p => ({ ...p, vehicle: v._id }))}>
+                <TouchableOpacity key={v._id} style={[styles.chip, form.vehicle === v._id && styles.chipActive]} onPress={() => {
+                  const subsForVeh = subscriptions.filter(s => s.vehicle?._id === v._id);
+                  setForm(p => ({ ...p, vehicle: v._id, appliedSubscription: subsForVeh.length > 0 ? subsForVeh[0]._id : '' }));
+                }}>
                   <Text style={[styles.chipText, form.vehicle === v._id && styles.chipTextActive]}>{v.make} {v.model}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {form.vehicle ? (() => {
-              const activeSub = subscriptions.find(s => s.vehicle?._id === form.vehicle);
-              if (!activeSub) return null;
-              const planName = typeof activeSub.plan === 'object' && activeSub.plan ? activeSub.plan.name : (activeSub.plan || 'Plan');
-              return (
-                <View style={{ backgroundColor: 'rgba(34,197,94,0.1)', padding: 12, borderRadius: 10, marginTop: 14, borderWidth: 1, borderColor: 'rgba(34,197,94,0.3)', flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 18, marginRight: 10 }}>💎</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.success, fontWeight: '700', fontSize: 13 }}>Active Subscription Applied</Text>
-                    <Text style={{ color: Colors.success, fontSize: 11, marginTop: 2, opacity: 0.9 }}>{planName} - Eligible for free service/labour</Text>
+              const activeSubs = subscriptions.filter(s => s.vehicle?._id === form.vehicle);
+              if (activeSubs.length === 0) {
+                const vehicleObj = vehicles.find(v => v._id === form.vehicle);
+                if (!vehicleObj) return null;
+                const brandPlans = plans.filter(p => p.isActive && (!p.targetBrand || p.targetBrand === 'All' || p.targetBrand.toLowerCase() === vehicleObj.make.toLowerCase()));
+                if (brandPlans.length === 0) return null;
+
+                return (
+                  <View style={{ marginTop: 14 }}>
+                    <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Available Plans for {vehicleObj.make}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16 }}>
+                      {brandPlans.map(plan => (
+                        <TouchableOpacity
+                          key={plan._id}
+                          style={styles.planCardSmall}
+                          activeOpacity={0.8}
+                          onPress={() => handleSubscribe(plan, vehicleObj)}
+                        >
+                          {plan.badge ? <View style={styles.planBadge}><Text style={styles.planBadgeText}>{plan.badge}</Text></View> : null}
+                          <Text style={styles.planTitleSmall}>{plan.name}</Text>
+                          {plan.serviceDiscount ? (
+                            <Text style={{ color: Colors.success, fontSize: 10, fontWeight: '700', marginTop: 2 }}>{plan.serviceDiscount}% Service Off</Text>
+                          ) : null}
+                          <Text style={styles.planPriceSmall}>₹{plan.amount?.toLocaleString('en-IN')}</Text>
+                          <Text style={styles.planMetaSmall}>{plan.duration} days · {plan.services} services</Text>
+                          <View style={styles.planBtnSmall}>
+                            <Text style={styles.planBtnTextSmall}>Subscribe</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
                   </View>
+                );
+              }
+
+              return (
+                <View style={{ marginTop: 14 }}>
+                  <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Select Subscription to Apply</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16 }}>
+                    {activeSubs.map(sub => {
+                      const planObj = typeof sub.plan === 'object' && sub.plan ? sub.plan : null;
+                      const planName = planObj ? planObj.name : (sub.plan || 'Plan');
+                      const sDiscount = (planObj as any)?.serviceDiscount || 0;
+                      const isSelected = form.appliedSubscription === sub._id;
+                      
+                      return (
+                        <TouchableOpacity
+                          key={sub._id}
+                          style={[styles.planCardSmall, isSelected && { borderColor: Colors.success, backgroundColor: 'rgba(34,197,94,0.15)' }]}
+                          onPress={() => setForm(p => ({ ...p, appliedSubscription: sub._id }))}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.planTitleSmall}>{planName}</Text>
+                          {sDiscount > 0 ? (
+                            <Text style={{ color: Colors.success, fontSize: 10, fontWeight: '700', marginTop: 2 }}>{sDiscount}% Service Off</Text>
+                          ) : null}
+                          <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 4 }}>
+                            {sub.servicesUsed} / {sub.servicesIncluded} services used
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                            <View style={{ width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: isSelected ? Colors.success : Colors.textMuted, backgroundColor: isSelected ? Colors.success : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
+                              {isSelected && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' }} />}
+                            </View>
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: isSelected ? Colors.success : Colors.textMuted }}>{isSelected ? 'Applied' : 'Select'}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </ScrollView>
                 </View>
               );
             })() : null}
@@ -376,6 +461,14 @@ const styles = StyleSheet.create({
   updateCard: { backgroundColor: Colors.bgCard, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.border, gap: 6 },
   updateNote: { fontSize: 13, color: Colors.textSecondary },
   updateDate: { fontSize: 11, color: Colors.textMuted },
+  planCardSmall: { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(0,229,255,0.2)', borderRadius: 12, padding: 12, marginRight: 12, width: 140, position: 'relative' },
+  planBadge: { position: 'absolute', top: -8, alignSelf: 'center', backgroundColor: '#fb923c', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  planBadgeText: { fontSize: 8, fontWeight: '800', color: '#fff', textTransform: 'uppercase' },
+  planTitleSmall: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginTop: 4 },
+  planPriceSmall: { fontSize: 15, fontWeight: '800', color: Colors.accentLight, marginVertical: 4 },
+  planMetaSmall: { fontSize: 10, color: Colors.textSecondary, marginBottom: 8 },
+  planBtnSmall: { backgroundColor: Colors.primary, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
+  planBtnTextSmall: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });
 
 export default ServicesScreen;

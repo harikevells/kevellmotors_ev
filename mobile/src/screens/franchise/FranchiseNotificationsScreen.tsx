@@ -3,9 +3,8 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Ale
 import { Colors } from '../../utils/colors';
 import { notificationsApi } from '../../api/franchiseApi';
 import { useAuth } from '../../context/AuthContext';
-import Icon from 'react-native-vector-icons/Feather';
-import Header from '../../components/Header';
-import Spinner from '../../components/Spinner';
+import { CheckCircle, BellOff, Calendar, Tag, Bell, CreditCard, Info } from 'lucide-react-native';
+import { ActivityIndicator } from 'react-native';
 import { DrawerScreenProps } from '@react-navigation/drawer';
 import { FranchiseDrawerParamList } from '../../navigation/FranchiseDrawer';
 
@@ -43,7 +42,7 @@ const FranchiseNotificationsScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await notificationsApi.markAsRead(id);
       setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
+        prev.map((n) => (n._id === id ? { ...n, read: true } : n))
       );
     } catch (error) {
       console.error(error);
@@ -53,7 +52,7 @@ const FranchiseNotificationsScreen: React.FC<Props> = ({ navigation }) => {
   const handleMarkAllAsRead = async () => {
     try {
       await notificationsApi.markAllAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       Alert.alert('Success', 'All notifications marked as read');
     } catch (error) {
       console.error(error);
@@ -61,50 +60,51 @@ const FranchiseNotificationsScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const getIconForType = (type: string) => {
+  const getIconForType = (type: string, color: string) => {
     switch (type) {
-      case 'booking': return 'calendar';
-      case 'offer': return 'tag';
-      case 'reminder': return 'bell';
-      case 'payment': return 'credit-card';
-      default: return 'info';
+      case 'booking': return <Calendar size={20} color={color} />;
+      case 'offer': return <Tag size={20} color={color} />;
+      case 'reminder': return <Bell size={20} color={color} />;
+      case 'payment': return <CreditCard size={20} color={color} />;
+      default: return <Info size={20} color={color} />;
     }
   };
 
   const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity
-      style={[styles.card, !item.isRead && styles.unreadCard]}
+      style={[styles.card, !item.read && styles.unreadCard]}
       onPress={() => {
-        if (!item.isRead) handleMarkAsRead(item._id);
+        if (!item.read) handleMarkAsRead(item._id);
       }}
     >
-      <View style={[styles.iconContainer, !item.isRead && { backgroundColor: Colors.primary + '20' }]}>
-        <Icon name={getIconForType(item.type)} size={20} color={!item.isRead ? Colors.primary : Colors.textMuted} />
+      <View style={[styles.iconContainer, !item.read && { backgroundColor: 'rgba(0,229,255,0.1)' }]}>
+        {getIconForType(item.type, !item.read ? Colors.cyan : Colors.textMuted)}
       </View>
       <View style={styles.cardContent}>
-        <Text style={[styles.title, !item.isRead && styles.unreadText]}>{item.title}</Text>
+        <Text style={[styles.title, !item.read && styles.unreadText]}>{item.title}</Text>
         <Text style={styles.message}>{item.message}</Text>
         <Text style={styles.date}>{new Date(item.createdAt).toLocaleString()}</Text>
       </View>
-      {!item.isRead && <View style={styles.unreadDot} />}
+      {!item.read && <View style={styles.unreadDot} />}
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      <Header title="Notifications" onMenuPress={() => navigation.openDrawer()} />
       <View style={styles.headerActions}>
         <TouchableOpacity style={styles.markAllBtn} onPress={handleMarkAllAsRead}>
-          <Icon name="check-circle" size={16} color={Colors.primary} />
+          <CheckCircle size={16} color={Colors.cyan} />
           <Text style={styles.markAllText}>Mark all as read</Text>
         </TouchableOpacity>
       </View>
 
       {loading ? (
-        <Spinner text="Loading notifications..." />
+        <View style={styles.centered}>
+          <ActivityIndicator color={Colors.cyan} size="large" />
+        </View>
       ) : notifications.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Icon name="bell-off" size={48} color={Colors.border} />
+          <BellOff size={48} color={Colors.border} />
           <Text style={styles.emptyText}>No notifications yet.</Text>
         </View>
       ) : (
@@ -113,7 +113,7 @@ const FranchiseNotificationsScreen: React.FC<Props> = ({ navigation }) => {
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContainer}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.cyan} />}
         />
       )}
     </View>
@@ -121,20 +121,21 @@ const FranchiseNotificationsScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bgDark },
+  container: { flex: 1, backgroundColor: Colors.bg, paddingTop: 10 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerActions: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 20, paddingBottom: 10 },
-  markAllBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bgLight, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 6 },
-  markAllText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
+  markAllBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bgCard, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 6, borderWidth: 1, borderColor: Colors.border },
+  markAllText: { color: Colors.cyan, fontSize: 13, fontWeight: '600' },
   listContainer: { padding: 20, paddingBottom: 40, gap: 12 },
-  card: { flexDirection: 'row', backgroundColor: Colors.bgLight, borderRadius: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: 'transparent', gap: 12 },
-  unreadCard: { borderLeftColor: Colors.primary, backgroundColor: Colors.cardBg },
-  iconContainer: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.bgDark, justifyContent: 'center', alignItems: 'center' },
+  card: { flexDirection: 'row', backgroundColor: Colors.bgCard, borderRadius: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: 'transparent', gap: 12, borderWidth: 1, borderColor: Colors.border },
+  unreadCard: { borderLeftColor: Colors.cyan, backgroundColor: '#0f172a' },
+  iconContainer: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center' },
   cardContent: { flex: 1 },
-  title: { fontSize: 16, fontWeight: '600', color: Colors.textMuted, marginBottom: 4 },
-  unreadText: { color: Colors.text, fontWeight: '700' },
-  message: { fontSize: 14, color: Colors.text, marginBottom: 8, lineHeight: 20 },
+  title: { fontSize: 16, fontWeight: '600', color: Colors.textSecondary, marginBottom: 4 },
+  unreadText: { color: Colors.textPrimary, fontWeight: '700' },
+  message: { fontSize: 14, color: Colors.textSecondary, marginBottom: 8, lineHeight: 20 },
   date: { fontSize: 12, color: Colors.textMuted },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary, alignSelf: 'center' },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.cyan, alignSelf: 'center' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
   emptyText: { color: Colors.textMuted, fontSize: 16, fontWeight: '500' },
 });

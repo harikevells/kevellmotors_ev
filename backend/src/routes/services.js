@@ -49,17 +49,25 @@ router.post('/', protect, async (req, res, next) => {
 
     // Check if user has an active subscription for this vehicle
     const Subscription = require('../models/Subscription');
-    const activeSub = await Subscription.findOne({
-      user: req.user._id,
-      vehicle: req.body.vehicle,
-      status: 'active'
-    });
+    let activeSub = null;
+    if (req.body.appliedSubscription) {
+      activeSub = await Subscription.findOne({ _id: req.body.appliedSubscription, user: req.user._id, status: 'active' });
+    } else {
+      activeSub = await Subscription.findOne({
+        user: req.user._id,
+        vehicle: req.body.vehicle,
+        status: 'active'
+      });
+    }
 
-    if (activeSub && activeSub.servicesUsed < activeSub.servicesIncluded) {
-      activeSub.servicesUsed += 1;
-      await activeSub.save();
-      serviceData.technicianNotes = 'Service covered under active subscription. (Included free service used)';
-      serviceData.paymentStatus = 'waived';
+    if (activeSub) {
+      serviceData.appliedSubscription = activeSub._id;
+      if (activeSub.servicesUsed < activeSub.servicesIncluded) {
+        activeSub.servicesUsed += 1;
+        await activeSub.save();
+        serviceData.technicianNotes = 'Service covered under active subscription. (Included free service used)';
+        serviceData.paymentStatus = 'waived';
+      }
     }
 
     const service = await Service.create(serviceData);
@@ -80,7 +88,7 @@ router.post('/', protect, async (req, res, next) => {
     await Notification.create({
       recipient: req.user._id,
       title: 'Booking Confirmed',
-      message: `Your service booking for ${new Date(service.serviceDate).toLocaleDateString()} has been received.`,
+      message: `Hi ${req.user.name}, your service booking for ${new Date(service.serviceDate).toLocaleDateString()} has been received.`,
       type: 'booking',
       link: '/user/bookings'
     });
@@ -96,6 +104,21 @@ router.post('/', protect, async (req, res, next) => {
         link: '/admin/services'
       }));
       await Notification.insertMany(adminNotifications);
+    }
+
+    // Notify franchise if assigned during booking
+    if (serviceData.franchise) {
+      const Franchise = require('../models/Franchise');
+      const assignedFranchise = await Franchise.findById(serviceData.franchise);
+      if (assignedFranchise && assignedFranchise.owner) {
+        await Notification.create({
+          recipient: assignedFranchise.owner,
+          title: 'New Service Booking',
+          message: `Hi ${assignedFranchise.name}, ${req.user.name} has just booked a ${service.serviceType} service at your franchise.`,
+          type: 'booking',
+          link: '/franchise/bookings'
+        });
+      }
     }
 
     res.status(201).json({ success: true, service });
@@ -130,11 +153,18 @@ router.put('/:id/status', protect, authorize('admin', 'franchise'), async (req, 
     if (status === 'delivered') service.completedDate = new Date();
     await service.save();
 
+    const populatedService = await Service.findById(service._id)
+      .populate('owner', 'name')
+      .populate('franchise', 'name');
+
     const Notification = require('../models/Notification');
+    const franchiseName = populatedService.franchise ? populatedService.franchise.name : 'Kevell Motors';
+    const userName = populatedService.owner ? populatedService.owner.name : 'Customer';
+
     await Notification.create({
       recipient: service.owner,
       title: 'Service Update',
-      message: `Your vehicle service status is now: ${status.replace('_', ' ')}. ${note || ''}`,
+      message: `Hi ${userName}, your vehicle service status at ${franchiseName} is now: ${status.replace('_', ' ')}. ${note || ''}`,
       type: 'system',
       link: '/user/bookings'
     });
@@ -170,14 +200,18 @@ router.put('/:id/assign', protect, authorize('admin'), async (req, res, next) =>
     if (!service) return res.status(404).json({ success: false, message: 'Service not found' });
     
     if (franchiseId) {
-      const Notification = require('../models/Notification');
-      await Notification.create({
-        recipient: franchiseId, // Assuming franchiseId matches User ID of the franchise owner
-        title: 'New Service Assigned',
-        message: `A new vehicle service (ID: ${service._id.toString().slice(-8).toUpperCase()}) has been assigned to your franchise.`,
-        type: 'booking',
-        link: '/franchise/queue'
-      });
+      const Franchise = require('../models/Franchise');
+      const assignedFranchise = await Franchise.findById(franchiseId);
+      if (assignedFranchise && assignedFranchise.owner) {
+        const Notification = require('../models/Notification');
+        await Notification.create({
+          recipient: assignedFranchise.owner,
+          title: 'New Service Assigned',
+          message: `Hi ${assignedFranchise.name}, a new vehicle service (ID: ${service._id.toString().slice(-8).toUpperCase()}) has been assigned to your franchise.`,
+          type: 'booking',
+          link: '/franchise/bookings'
+        });
+      }
     }
 
     res.json({ success: true, service });
@@ -200,6 +234,32 @@ router.patch('/:id/drop-request', protect, async (req, res, next) => {
       service.dropStatus = 'none';
     }
     await service.save();
+
+    if (service.dropRequested) {
+      const Notification = require('../models/Notification');
+      let notifyId = null;
+      if (service.franchise) {
+        const Franchise = require('../models/Franchise');
+        const assignedFranchise = await Franchise.findById(service.franchise);
+        if (assignedFranchise && assignedFranchise.owner) notifyId = assignedFranchise.owner;
+      }
+      
+      if (!notifyId) {
+        const User = require('../models/User');
+        const admin = await User.findOne({ role: 'admin' });
+        if (admin) notifyId = admin._id;
+      }
+
+      if (notifyId) {
+        await Notification.create({
+          recipient: notifyId,
+          title: 'Drop Requested',
+          message: `Customer ${req.user.name || ''} has requested a drop for their vehicle service.`,
+          type: 'booking',
+          link: service.franchise ? '/franchise/bookings' : '/admin/services'
+        });
+      }
+    }
 
     res.json({ success: true, service });
   } catch (err) {

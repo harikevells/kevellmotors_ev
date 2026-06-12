@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AdminSidebar from '../../components/admin/AdminSidebar';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { paymentAPI } from '../../api';
+import { Download } from 'lucide-react';
 
 const PAY_CFG = {
   success:  { label: 'Success',  color: '#02FF7F' },
@@ -155,7 +156,7 @@ export default function AdminPaymentsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.82rem' }}>
               <thead>
                 <tr>
-                  {['Date', 'Customer', 'For', 'Amount', 'Status', 'Reference', 'Action'].map(h => (
+                  {['Date', 'Customer', 'For', 'Amount', 'Status', 'Reference', 'Download', 'Action'].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>
@@ -180,6 +181,18 @@ export default function AdminPaymentsPage() {
                     <td style={{ padding: '.8rem 1.25rem' }}><PayBadge status={p.status} /></td>
                     <td style={{ padding: '.8rem 1.25rem', color: '#4b5563', fontSize: '.72rem', fontFamily: 'monospace' }}>
                       {p.razorpayPaymentId || p.orderId || p.invoiceNumber || '—'}
+                    </td>
+                    <td style={{ padding: '.8rem 1.25rem', textAlign: 'center' }}>
+                      {p.source === 'invoice' && (
+                        <button onClick={() => window.open(`http://localhost:5000/api/payments/invoice/${p.referenceId}`, '_blank')}
+                          title="Print/Download Invoice"
+                          style={{ background: 'rgba(14,165,233,.12)', border: '1px solid rgba(14,165,233,.4)', borderRadius: 7, padding: '.4rem .6rem', color: '#0EA5E9', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(14,165,233,.25)'; e.currentTarget.style.transform = 'scale(1.05)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(14,165,233,.12)'; e.currentTarget.style.transform = 'scale(1)' }}>
+                          <Download size={15} strokeWidth={2.5} />
+                        </button>
+                      )}
+                      {p.source !== 'invoice' && <span style={{ color: '#4b5563' }}>—</span>}
                     </td>
                     <td style={{ padding: '.8rem 1.25rem' }}>
                       {p.status === 'success' && p.source !== 'invoice' && (

@@ -42,7 +42,11 @@ app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().
 // Error handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`EVserv API running on port ${PORT}`));
+const http = require('http');
+const server = http.createServer(app);
+const io = require('./socket').init(server);
 
-module.exports = app;
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`EVserv API running on port ${PORT}`));
+
+module.exports = { app, server };

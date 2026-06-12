@@ -129,24 +129,49 @@ router.post('/orders', protect, async (req, res, next) => {
       totalAmount += partDoc.price * item.quantity;
     }
 
-    // Apply 10% discount if user has an active subscription
+    // Apply dynamic discount if user has an active subscription
     const Subscription = require('../models/Subscription');
-    const hasActiveSub = await Subscription.findOne({ user: req.user._id, status: 'active' });
-    if (hasActiveSub) {
-      totalAmount = totalAmount - (totalAmount * 0.10);
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+    let hasActiveSub = null;
+    
+    if (req.body.appliedSubscription !== undefined) {
+      // New app explicitly passes appliedSubscription (can be empty string)
+      if (req.body.appliedSubscription) {
+        hasActiveSub = await Subscription.findOne({ _id: req.body.appliedSubscription, user: req.user._id, status: 'active' });
+      }
+    } else {
+      // Old app fallback: auto-select first active subscription
+      hasActiveSub = await Subscription.findOne({ user: req.user._id, status: 'active' });
     }
 
-    const order = await Order.create({
-      user: req.user._id,
-      items: await Promise.all(
-        orderItems.map(async (item) => {
-          const partDoc = await SparePart.findById(item.partId);
-          return { part: item.partId, quantity: item.quantity, price: partDoc.price };
-        })
-      ),
-      totalAmount,
-      shippingAddress: addr,
-    });
+    if (hasActiveSub) {
+      const planDetail = await SubscriptionPlan.findOne({ key: hasActiveSub.plan });
+      if (planDetail) {
+        const discountPct = planDetail.sparePartsDiscount || 0;
+        if (discountPct > 0) {
+          totalAmount = totalAmount - (totalAmount * (discountPct / 100));
+        }
+      }
+    }
+
+    let order;
+    try {
+      order = await Order.create({
+        user: req.user._id,
+        items: await Promise.all(
+          orderItems.map(async (item) => {
+            const partDoc = await SparePart.findById(item.partId);
+            return { part: item.partId, quantity: item.quantity, price: partDoc.price };
+          })
+        ),
+        totalAmount,
+        shippingAddress: addr,
+        appliedSubscription: hasActiveSub ? hasActiveSub._id : undefined,
+      });
+    } catch (createErr) {
+      console.error("Order creation failed:", createErr);
+      return res.status(500).json({ success: false, message: `Failed to save order: ${createErr.message}` });
+    }
 
     const Notification = require('../models/Notification');
     const User = require('../models/User');
@@ -155,7 +180,7 @@ router.post('/orders', protect, async (req, res, next) => {
     await Notification.create({
       recipient: req.user._id,
       title: 'Order Placed',
-      message: `Your order for spare parts (Total: ₹${totalAmount}) has been confirmed.`,
+      message: `Hi ${req.user.name}, your order for spare parts (Total: ₹${totalAmount}) has been confirmed.`,
       type: 'order',
       link: '/user/orders'
     });
@@ -216,7 +241,7 @@ router.put('/orders/:id/status', protect, authorize('admin'), async (req, res, n
     await Notification.create({
       recipient: order.user._id,
       title: 'Order Update',
-      message: `Your spare parts order is now: ${status}.`,
+      message: `Hi ${order.user.name}, your spare parts order is now: ${status}.`,
       type: 'order',
       link: '/user/orders'
     });
@@ -231,7 +256,21 @@ router.get('/orders/mine', protect, async (req, res, next) => {
   try {
     const orders = await Order.find({ user: req.user._id })
       .populate('items.part', 'name partNumber price')
-      .sort({ createdAt: -1 });
+      .populate('appliedSubscription')
+      .sort({ createdAt: -1 })
+      .lean();
+      
+    // Manually populate plan for appliedSubscription
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+    for (let o of orders) {
+      if (o.appliedSubscription && typeof o.appliedSubscription.plan === 'string') {
+        const planObj = await SubscriptionPlan.findOne({ key: o.appliedSubscription.plan }).lean();
+        if (planObj) {
+          o.appliedSubscription.plan = planObj;
+        }
+      }
+    }
+
     res.json({ success: true, orders });
   } catch (err) {
     next(err);

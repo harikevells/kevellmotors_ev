@@ -35,7 +35,7 @@ function LocationPicker({ lat, lng, onPick }) {
 }
 
 const EMPTY_FORM = {
-  name: '', email: '', phone: '', owner: '',
+  name: '', email: '', phone: '',
   address: { street: '', city: '', state: '', pincode: '' },
   licenseNumber: '', gstNumber: '', capacity: 10,
   schedules: [{ type: 'overall', days: ['monday','tuesday','wednesday','thursday','friday'], open: '09:00', close: '18:00', isClosed: false }],
@@ -264,7 +264,7 @@ export default function AdminFranchisesPage() {
       {editTarget && (
         <DarkModal title={`Edit — ${editTarget.name}`} onClose={() => setEditTarget(null)}>
           {editError && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: 8, padding: '.75rem', marginBottom: '1rem', fontSize: '.85rem' }}>{editError}</div>}
-          <FranchiseForm form={editForm} setForm={setEditForm} onSubmit={handleEdit} submitting={saving} submitLabel="Save Changes" onCancel={() => setEditTarget(null)} hideOwner />
+          <FranchiseForm form={editForm} setForm={setEditForm} onSubmit={handleEdit} submitting={saving} submitLabel="Save Changes" onCancel={() => setEditTarget(null)} />
         </DarkModal>
       )}
     </div>
@@ -272,7 +272,7 @@ export default function AdminFranchisesPage() {
 }
 
 /* ── Shared form component ── */
-function FranchiseForm({ form, setForm, onSubmit, submitting, submitLabel, onCancel, hideOwner }) {
+function FranchiseForm({ form, setForm, onSubmit, submitting, submitLabel, onCancel }) {
   const [newSchedule, setNewSchedule] = useState({
     type: 'overall', startDate: '', endDate: '', days: ['monday','tuesday','wednesday','thursday','friday'],
     open: '09:00', close: '18:00', isClosed: false, capacity: form?.capacity || 10
@@ -320,12 +320,6 @@ function FranchiseForm({ form, setForm, onSubmit, submitting, submitLabel, onCan
           <label style={lbl}>Franchise / Business Name *</label>
           <input style={inp} value={form.name} onChange={(e) => set('name', e.target.value)} required />
         </div>
-        {!hideOwner && (
-          <div style={{ gridColumn: '1/-1' }}>
-            <label style={lbl}>Owner User ID *</label>
-            <input style={inp} value={form.owner} onChange={(e) => set('owner', e.target.value)} placeholder="MongoDB User _id" required />
-          </div>
-        )}
         <div><label style={lbl}>Email *</label><input type="email" style={inp} value={form.email} onChange={(e) => set('email', e.target.value)} required /></div>
         <div><label style={lbl}>Phone *</label><input style={inp} value={form.phone} onChange={(e) => set('phone', e.target.value)} required /></div>
         <div><label style={lbl}>License Number</label><input style={inp} value={form.licenseNumber} onChange={(e) => set('licenseNumber', e.target.value)} /></div>

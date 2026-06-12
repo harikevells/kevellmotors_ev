@@ -41,6 +41,7 @@ const orderSchema = new mongoose.Schema(
       pincode: String,
     },
     paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment' },
+    appliedSubscription: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' },
     deliveredAt: { type: Date },
   },
   { timestamps: true }

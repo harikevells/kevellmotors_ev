@@ -9,6 +9,9 @@ const subscriptionPlanSchema = new mongoose.Schema(
     services: { type: Number, required: true }, // included service count
     highlights: [{ type: String }],             // feature bullet points
     badge: { type: String, default: '' },       // e.g. "Most Popular"
+    targetBrand: { type: String, default: 'All' }, // e.g. "Tata Motors", "Ola Electric", or "All"
+    sparePartsDiscount: { type: Number, default: 0 }, // percentage discount on parts
+    serviceDiscount: { type: Number, default: 0 },    // percentage discount on services
     isActive: { type: Boolean, default: true },
     sortOrder: { type: Number, default: 0 },
   },

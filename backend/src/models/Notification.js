@@ -9,4 +9,24 @@ const notificationSchema = new mongoose.Schema({
   link: { type: String }, // Optional URL to redirect to on click
 }, { timestamps: true });
 
+notificationSchema.post('save', function (doc) {
+  try {
+    const io = require('../socket').getIO();
+    io.to(doc.recipient.toString()).emit('new_notification', doc);
+  } catch (err) {
+    console.error('Socket emit error:', err);
+  }
+});
+
+notificationSchema.post('insertMany', function (docs) {
+  try {
+    const io = require('../socket').getIO();
+    docs.forEach(doc => {
+      io.to(doc.recipient.toString()).emit('new_notification', doc);
+    });
+  } catch (err) {
+    console.error('Socket emit error:', err);
+  }
+});
+
 module.exports = mongoose.model('Notification', notificationSchema);

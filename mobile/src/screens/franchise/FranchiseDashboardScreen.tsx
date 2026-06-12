@@ -8,15 +8,15 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { franchiseApi } from '../../api/franchiseApi';
+import { franchiseApi, notificationsApi } from '../../api/franchiseApi';
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../utils/colors';
 import { formatINR, formatDate, initials } from '../../utils/helpers';
 import type { DashboardData, Booking } from '../../types';
 import type { FranchiseTabParamList } from '../../navigation/FranchiseNavigator';
-import { Wallet } from 'lucide-react-native';
+import { Wallet, Bell } from 'lucide-react-native';
 
 type NavProp = BottomTabNavigationProp<FranchiseTabParamList, 'Dashboard'>;
 
@@ -71,6 +71,15 @@ export default function FranchiseDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      notificationsApi.getUnreadCount()
+        .then((res) => setUnreadCount(res.data.count))
+        .catch((err) => console.error(err));
+    }, [])
+  );
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -78,6 +87,14 @@ export default function FranchiseDashboardScreen() {
     try {
       const res = await franchiseApi.getDashboard();
       setData(res.data);
+      
+      // Also silently update unread count on manual refresh
+      try {
+        const notifRes = await notificationsApi.getUnreadCount();
+        setUnreadCount(notifRes.data.count);
+      } catch (e) {
+        console.error('Failed to update unread count on refresh', e);
+      }
     } catch {
       setError('Failed to load dashboard. Pull down to retry.');
     } finally {
@@ -143,8 +160,21 @@ export default function FranchiseDashboardScreen() {
           <Text style={styles.greeting}>{greetingText},</Text>
           <Text style={styles.headerTitle}>Dashboard</Text>
         </View>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarText}>{initials(user?.name, 'F')}</Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={styles.bellBtn}
+            onPress={() => (navigation as any).navigate('More', { screen: 'Notifications' })}
+          >
+            <Bell color={Colors.textPrimary} size={24} />
+            {unreadCount > 0 && (
+              <View style={styles.badgeWrap}>
+                <Text style={styles.badgeTextCount}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <View style={styles.avatarWrap}>
+            <Text style={styles.avatarText}>{initials(user?.name, 'F')}</Text>
+          </View>
         </View>
       </View>
 
@@ -299,6 +329,10 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 13, color: Colors.textMuted },
   headerTitle: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  bellBtn: { position: 'relative', padding: 4 },
+  badgeWrap: { position: 'absolute', top: -2, right: -4, backgroundColor: Colors.red, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
+  badgeTextCount: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
   avatarWrap: {
     width: 40,
     height: 40,

@@ -33,9 +33,9 @@ const SubscriptionsScreen: React.FC = () => {
   // tab: 'plans' | 'my'
   const [tab, setTab] = useState<'plans' | 'my'>('plans');
 
-  // Modal state
   const [modalPlan, setModalPlan] = useState<SubscriptionPlan | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState('');
+  const [filterVehicleId, setFilterVehicleId] = useState<string>(''); // For filtering plans tab
   const [processing, setProcessing] = useState(false);
 
   const load = useCallback(async () => {
@@ -47,7 +47,11 @@ const SubscriptionsScreen: React.FC = () => {
       ]);
       setMySubs(subRes.data.subscriptions || []);
       setPlans(planRes.data.plans || []);
-      setVehicles(vehRes.data.vehicles || []);
+      const vehList = vehRes.data.vehicles || [];
+      setVehicles(vehList);
+      if (vehList.length > 0 && !filterVehicleId) {
+        setFilterVehicleId(vehList[0]._id);
+      }
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
@@ -106,6 +110,13 @@ const SubscriptionsScreen: React.FC = () => {
   const pendingSubs  = mySubs.filter(s => s.status === 'pending');
   const expiredSubs  = mySubs.filter(s => !['active', 'pending'].includes(s.status));
 
+  const filteredPlans = plans.filter(p => {
+    if (!filterVehicleId) return true;
+    const v = vehicles.find(x => x._id === filterVehicleId);
+    if (!v) return true;
+    return !p.targetBrand || p.targetBrand === 'All' || p.targetBrand.toLowerCase() === v.make.toLowerCase();
+  });
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <Header title="Subscriptions" subtitle="Pick a plan & subscribe" />
@@ -141,12 +152,35 @@ const SubscriptionsScreen: React.FC = () => {
         {/* ── PLANS TAB ── */}
         {tab === 'plans' && (
           <>
-            {plans.length === 0 ? (
+            {vehicles.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.vehicleFilterScroll}>
+                <TouchableOpacity
+                  style={[styles.vehicleFilterChip, !filterVehicleId && styles.vehicleFilterChipActive]}
+                  onPress={() => setFilterVehicleId('')}
+                >
+                  <Text style={[styles.vehicleFilterText, !filterVehicleId && styles.vehicleFilterTextActive]}>All Brands</Text>
+                </TouchableOpacity>
+                {vehicles.map(v => (
+                  <TouchableOpacity
+                    key={v._id}
+                    style={[styles.vehicleFilterChip, filterVehicleId === v._id && styles.vehicleFilterChipActive]}
+                    onPress={() => setFilterVehicleId(v._id)}
+                  >
+                    <Car size={14} color={filterVehicleId === v._id ? '#06071a' : Colors.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.vehicleFilterText, filterVehicleId === v._id && styles.vehicleFilterTextActive]}>
+                      {v.make}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+            
+            {filteredPlans.length === 0 ? (
               <Card>
-                <Text style={styles.empty}>No plans available right now.</Text>
+                <Text style={styles.empty}>No plans available for this vehicle brand right now.</Text>
               </Card>
             ) : (
-              plans.map(plan => (
+              filteredPlans.map(plan => (
                 <PlanCard
                   key={plan._id}
                   plan={plan}
@@ -297,6 +331,16 @@ const PlanCard: React.FC<{ plan: SubscriptionPlan; onSubscribe: () => void }> = 
       <View style={{ flex: 1 }}>
         <Text style={styles.planName}>{plan.name}</Text>
         <Text style={styles.planMeta}>{plan.duration} days · {plan.services} service{plan.services !== 1 ? 's' : ''}</Text>
+        {plan.serviceDiscount ? (
+          <Text style={{ color: Colors.success, fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+            {plan.serviceDiscount}% Service Discount
+          </Text>
+        ) : null}
+        {plan.sparePartsDiscount ? (
+          <Text style={{ color: Colors.success, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+            {plan.sparePartsDiscount}% Spare Parts Discount
+          </Text>
+        ) : null}
       </View>
       <Text style={styles.planPrice}>₹{plan.amount?.toLocaleString('en-IN')}</Text>
     </View>
@@ -400,6 +444,23 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: Colors.primary },
   tabText: { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
   tabTextActive: { color: '#fff', fontWeight: '700' },
+
+  // Vehicle Filter
+  vehicleFilterScroll: { marginBottom: 16, paddingHorizontal: 4 },
+  vehicleFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  vehicleFilterChipActive: { backgroundColor: '#00e5ff', borderColor: '#00e5ff' },
+  vehicleFilterText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  vehicleFilterTextActive: { color: '#06071a', fontWeight: '800' },
 
   // Section title
   sectionTitle: {

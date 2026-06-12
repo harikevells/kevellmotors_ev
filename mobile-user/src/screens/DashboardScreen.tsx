@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
   Image,
 } from 'react-native';
-import { useNavigation, DrawerActions } from '@react-navigation/native';
+import { useNavigation, DrawerActions, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   LayoutDashboard,
@@ -168,7 +168,7 @@ const DashboardScreen: React.FC = () => {
       setReminders(remRes.data.reminders || []);
       setFeed(feedRes.data.posts || []);
       
-      const unread = (notifRes.data.notifications || []).filter((n: any) => !n.isRead).length;
+      const unread = (notifRes.data.notifications || []).filter((n: any) => !n.read).length;
       setUnreadCount(unread);
     } catch (_err) {
       // silently fail — show whatever loaded
@@ -178,7 +178,11 @@ const DashboardScreen: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const onRefresh = () => { setRefreshing(true); load(); };
 

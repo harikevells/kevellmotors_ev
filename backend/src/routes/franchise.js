@@ -142,11 +142,37 @@ router.get('/bookings', async (req, res, next) => {
       filter.scheduledDate = { $gte: d, $lte: dEnd };
     }
 
-    const bookings = await Service.find(filter)
+    const bookingsDocs = await Service.find(filter)
       .sort({ createdAt: -1 })
       .populate('vehicle', 'registrationNumber make model vehicleType')
       .populate('owner', 'name phone email')
       .populate('franchise', 'name address phone');
+
+    const Subscription = require('../models/Subscription');
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+    
+    const ownerIds = bookingsDocs.map(b => b.owner && b.owner._id).filter(Boolean);
+    const activeSubs = await Subscription.find({ user: { $in: ownerIds }, status: 'active' });
+    const plans = await SubscriptionPlan.find();
+    
+    const bookings = bookingsDocs.map(b => {
+      const obj = b.toObject();
+      let sub = null;
+      if (b.appliedSubscription) {
+        sub = activeSubs.find(s => s._id.toString() === b.appliedSubscription.toString());
+      } else if (b.owner && b.vehicle) {
+        sub = activeSubs.find(s => s.user.toString() === b.owner._id.toString() && s.vehicle.toString() === b.vehicle._id.toString());
+      }
+      
+      if (sub) {
+        const planDetail = plans.find(p => p.key === sub.plan);
+        obj.activeSubscription = {
+          ...sub.toObject(),
+          planDetail
+        };
+      }
+      return obj;
+    });
 
     res.json({ success: true, bookings });
   } catch (err) { next(err); }
@@ -178,6 +204,31 @@ router.post('/bookings', async (req, res, next) => {
       }
     });
 
+    const Notification = require('../models/Notification');
+    const User = require('../models/User');
+
+    // Notify Franchise
+    await Notification.create({
+      recipient: req.user._id,
+      title: 'Booking Created',
+      message: `You have successfully created a new booking for ${customerName} (${regNo}).`,
+      type: 'booking',
+      link: '/franchise/bookings'
+    });
+
+    // Notify all admins
+    const admins = await User.find({ role: 'admin' });
+    if (admins.length > 0) {
+      const adminNotifications = admins.map(admin => ({
+        recipient: admin._id,
+        title: 'New Franchise Booking',
+        message: `Franchise ${franchise.name} created a new booking for ${customerName} (${regNo}).`,
+        type: 'system',
+        link: '/admin/services'
+      }));
+      await Notification.insertMany(adminNotifications);
+    }
+
     res.status(201).json({ success: true, service });
   } catch (err) { next(err); }
 });
@@ -202,8 +253,42 @@ router.patch('/bookings/:id/status', async (req, res, next) => {
     if (status === 'delivered') {
       service.completedDate = new Date();
       if (invoiceItems && invoiceItems.length > 0) {
-        service.invoiceItems = invoiceItems;
-        service.finalAmount = invoiceItems.reduce((sum, item) => sum + Number(item.amount), 0);
+        
+        let svcDiscount = 0;
+        let partDiscount = 0;
+        if (service.owner && service.vehicle) {
+          const Subscription = require('../models/Subscription');
+          const SubscriptionPlan = require('../models/SubscriptionPlan');
+          let activeSub = null;
+          if (service.appliedSubscription) {
+            activeSub = await Subscription.findById(service.appliedSubscription);
+          } else {
+            activeSub = await Subscription.findOne({ user: service.owner, vehicle: service.vehicle, status: 'active' });
+          }
+          if (activeSub) {
+            const planDetail = await SubscriptionPlan.findOne({ key: activeSub.plan });
+            if (planDetail) {
+              svcDiscount = planDetail.serviceDiscount || 0;
+              partDiscount = planDetail.sparePartsDiscount || 0;
+            }
+          }
+        }
+
+        const processedItems = invoiceItems.map(item => {
+          let amount = Number(item.amount);
+          let originalAmount = amount;
+          if (item.type === 'service' && svcDiscount > 0) {
+            amount = amount - (amount * (svcDiscount / 100));
+          } else if (item.type === 'part' && partDiscount > 0) {
+            amount = amount - (amount * (partDiscount / 100));
+          }
+          // Optionally attach original amount to item description if discounted
+          const finalDesc = amount < originalAmount ? `${item.description} (-${item.type === 'service' ? svcDiscount : partDiscount}%)` : item.description;
+          return { ...item, description: finalDesc, amount };
+        });
+
+        service.invoiceItems = processedItems;
+        service.finalAmount = processedItems.reduce((sum, item) => sum + item.amount, 0);
         service.invoiceDate = new Date();
         // Generate invoice number: INV-{franchiseId slice}-{timestamp}
         service.invoiceNumber = `INV-${franchise._id.toString().slice(-5).toUpperCase()}-${Date.now().toString().slice(-6)}`;
@@ -286,6 +371,17 @@ router.get('/customers', async (req, res, next) => {
     }));
 
     res.json({ success: true, customers });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/franchise/customers/:id/orders ───────────────────────
+router.get('/customers/:id/orders', async (req, res, next) => {
+  try {
+    const { Order } = require('../models/SparePart');
+    const orders = await Order.find({ user: req.params.id })
+      .populate('items.part', 'name price')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, orders });
   } catch (err) { next(err); }
 });
 
@@ -393,6 +489,20 @@ router.patch('/bookings/:id/payment', async (req, res, next) => {
           },
         },
       });
+      
+      const Notification = require('../models/Notification');
+      if (service.owner) {
+        const User = require('../models/User');
+        const userDoc = await User.findById(service.owner);
+        const userName = userDoc ? userDoc.name : 'Customer';
+        await Notification.create({
+          recipient: service.owner,
+          title: 'Payment Confirmed',
+          message: `Hi ${userName}, your payment of ₹${service.finalAmount} for service at ${franchise.name} has been confirmed.`,
+          type: 'payment',
+          link: '/user/payments'
+        });
+      }
     }
 
     res.json({ success: true, service });
@@ -469,21 +579,40 @@ router.patch('/bookings/:id/logistics', async (req, res, next) => {
     const service = await Service.findOne({ _id: req.params.id, franchise: franchise._id });
     if (!service) return res.status(404).json({ success: false, message: 'Booking not found' });
 
-    if (pickupStatus) {
+    let logisticsUpdates = [];
+
+    if (pickupStatus && service.pickupStatus !== pickupStatus) {
       if (!['pending', 'completed', 'none'].includes(pickupStatus)) {
         return res.status(400).json({ success: false, message: 'Invalid pickup status' });
       }
       service.pickupStatus = pickupStatus;
+      if (pickupStatus === 'completed') logisticsUpdates.push('Vehicle picked up');
     }
 
-    if (dropStatus) {
+    if (dropStatus && service.dropStatus !== dropStatus) {
       if (!['pending', 'completed', 'none'].includes(dropStatus)) {
         return res.status(400).json({ success: false, message: 'Invalid drop status' });
       }
       service.dropStatus = dropStatus;
+      if (dropStatus === 'completed') logisticsUpdates.push('Vehicle dropped off');
     }
 
     await service.save();
+
+    if (logisticsUpdates.length > 0 && service.owner) {
+      const Notification = require('../models/Notification');
+      const User = require('../models/User');
+      const userDoc = await User.findById(service.owner);
+      const userName = userDoc ? userDoc.name : 'Customer';
+      await Notification.create({
+        recipient: service.owner,
+        title: 'Logistics Update',
+        message: `Hi ${userName}, ${franchise.name}: ${logisticsUpdates.join(' & ')}.`,
+        type: 'booking',
+        link: '/user/bookings'
+      });
+    }
+
     res.json({ success: true, service });
   } catch (err) { next(err); }
 });

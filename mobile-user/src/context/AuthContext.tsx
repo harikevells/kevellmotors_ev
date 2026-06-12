@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../api';
 import type { User } from '../types';
+import { Alert } from 'react-native';
+import io, { Socket } from 'socket.io-client';
+import { BASE_URL } from '../api/apiClient';
 
 interface AuthContextValue {
   user: User | null;
@@ -38,6 +41,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
+
+  useEffect(() => {
+    let socket: Socket;
+    if (user) {
+      const serverUrl = BASE_URL.replace('/api', '');
+      socket = io(serverUrl);
+
+      socket.on('connect', () => {
+        socket.emit('join', user._id);
+        if (user.role === 'admin') socket.emit('join_admin');
+      });
+
+      socket.on('new_notification', (data) => {
+        Alert.alert('New Notification', data.title + '\n' + data.message);
+      });
+    }
+
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, [user]);
 
   const login = async (email: string, password: string): Promise<User> => {
     const res = await authAPI.login({ email, password });

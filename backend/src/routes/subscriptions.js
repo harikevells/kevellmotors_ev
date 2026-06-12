@@ -145,6 +145,22 @@ router.post('/', protect, async (req, res, next) => {
     const subObj = subscription.toObject();
     subObj.plan = planDoc;
 
+    const Notification = require('../models/Notification');
+    const User = require('../models/User');
+
+    // Notify all admins
+    const admins = await User.find({ role: 'admin' });
+    if (admins.length > 0) {
+      const adminNotifications = admins.map(admin => ({
+        recipient: admin._id,
+        title: 'New Subscription Request',
+        message: `${req.user.name || 'A user'} requested the ${planDoc.name} plan.`,
+        type: 'system',
+        link: '/admin/subscriptions'
+      }));
+      await Notification.insertMany(adminNotifications);
+    }
+
     res.status(201).json({ success: true, subscription: subObj });
   } catch (err) {
     next(err);
@@ -211,7 +227,7 @@ router.put('/:id/activate', protect, authorize('admin'), async (req, res, next) 
       req.params.id,
       updates,
       { new: true }
-    );
+    ).populate('user', 'name');
     if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });
     
     const planDetail = await SubscriptionPlan.findOne({ key: subscription.plan });
@@ -222,6 +238,15 @@ router.put('/:id/activate', protect, authorize('admin'), async (req, res, next) 
       subObj.plan = { name: subscription.plan, highlights: subscription.features || [], services: subscription.servicesIncluded, duration: 30, amount: subscription.amount };
     }
     
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      recipient: subscription.user._id || subscription.user,
+      title: 'Subscription Activated',
+      message: `Hi ${subscription.user.name || 'Customer'}, your ${subObj.plan.name} subscription has been approved and is now active!`,
+      type: 'system',
+      link: '/user/subscriptions'
+    });
+
     res.json({ success: true, subscription: subObj });
   } catch (err) {
     next(err);
@@ -235,7 +260,7 @@ router.put('/:id/reject', protect, authorize('admin'), async (req, res, next) =>
       req.params.id,
       { status: 'cancelled' },
       { new: true }
-    );
+    ).populate('user', 'name');
     if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });
     
     const planDetail = await SubscriptionPlan.findOne({ key: subscription.plan });
@@ -246,6 +271,15 @@ router.put('/:id/reject', protect, authorize('admin'), async (req, res, next) =>
       subObj.plan = { name: subscription.plan, highlights: subscription.features || [], services: subscription.servicesIncluded, duration: 30, amount: subscription.amount };
     }
     
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      recipient: subscription.user._id || subscription.user,
+      title: 'Subscription Rejected',
+      message: `Hi ${subscription.user.name || 'Customer'}, your request for the ${subObj.plan.name} subscription was rejected.`,
+      type: 'system',
+      link: '/user/subscriptions'
+    });
+
     res.json({ success: true, subscription: subObj });
   } catch (err) {
     next(err);

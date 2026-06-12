@@ -6,6 +6,10 @@ export default function ProtectedRoute({ children, role }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
-  if (role && user.role !== role && !(role === 'admin' && user.role === 'franchise')) return <Navigate to="/dashboard" replace />;
+  if (role && user.role !== role) {
+    if (user.role === 'franchise') return <Navigate to="/franchise/dashboard" replace />;
+    if (user.role === 'admin') return <Navigate to="/admin" replace />;
+    return <Navigate to="/dashboard" replace />;
+  }
   return children;
 }

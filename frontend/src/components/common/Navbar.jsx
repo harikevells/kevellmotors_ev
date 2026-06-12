@@ -20,8 +20,10 @@ export default function Navbar() {
             <>
               {/* <li><Link to="/feed">Feed</Link></li> */}
               <li><Link to="/parts">Parts</Link></li>
-              {user.role === 'admin' || user.role === 'franchise' ? (
-                <li><Link to="/admin">Admin</Link></li>
+              {user.role === 'admin' ? (
+                <li><Link to="/admin">Admin Dashboard</Link></li>
+              ) : user.role === 'franchise' ? (
+                <li><Link to="/franchise/dashboard">Franchise Dashboard</Link></li>
               ) : (
                 <li><Link to="/dashboard">Dashboard</Link></li>
               )}

@@ -23,10 +23,33 @@ router.get('/', async (req, res, next) => {
 // POST /api/franchises — admin creates franchise
 router.post('/', protect, authorize('admin'), async (req, res, next) => {
   try {
-    const franchise = await Franchise.create(req.body);
-    // Update owner role to franchise
     const User = require('../models/User');
-    await User.findByIdAndUpdate(req.body.owner, { role: 'franchise' });
+    let ownerId = req.body.owner;
+
+    if (!ownerId) {
+      // Find user by email or phone
+      let user = await User.findOne({ $or: [{ email: req.body.email }, { phone: req.body.phone }] });
+      
+      if (!user) {
+        // Create new user for the franchise owner
+        user = await User.create({
+          name: req.body.name + ' Owner',
+          email: req.body.email,
+          phone: req.body.phone,
+          password: req.body.phone || '123456', // default password
+          role: 'franchise'
+        });
+      } else {
+        // Update existing user role
+        await User.findByIdAndUpdate(user._id, { role: 'franchise' });
+      }
+      ownerId = user._id;
+    } else {
+      await User.findByIdAndUpdate(ownerId, { role: 'franchise' });
+    }
+
+    const franchiseData = { ...req.body, owner: ownerId };
+    const franchise = await Franchise.create(franchiseData);
     res.status(201).json({ success: true, franchise });
   } catch (err) {
     next(err);
@@ -57,7 +80,7 @@ router.get('/nearby', async (req, res, next) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lng = parseFloat(req.query.lng);
-    const radius = Math.min(parseFloat(req.query.radius) || 30, 500); // cap at 500 km
+    const radius = Math.min(parseFloat(req.query.radius) || 30, 50000); // cap at 50000 km
 
     if (isNaN(lat) || isNaN(lng)) {
       return res.status(400).json({ success: false, message: 'lat and lng are required' });

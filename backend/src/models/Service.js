@@ -30,6 +30,7 @@ const serviceSchema = new mongoose.Schema(
         updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
       },
     ],
+    appliedSubscription: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' },
     spareParts: [
       {
         part: { type: mongoose.Schema.Types.ObjectId, ref: 'SparePart' },

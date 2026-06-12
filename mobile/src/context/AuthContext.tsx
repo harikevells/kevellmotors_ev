@@ -7,8 +7,10 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi } from '../api/franchiseApi';
+import { Alert } from 'react-native';
+import io, { Socket } from 'socket.io-client';
+import { BASE_URL } from '../api/apiClient';
 import type { User } from '../types';
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface AuthState {
   user: User | null;
@@ -55,6 +57,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     bootstrap();
   }, []);
+
+  useEffect(() => {
+    let socket: Socket;
+    if (state.user) {
+      const serverUrl = BASE_URL.replace('/api', '');
+      socket = io(serverUrl);
+
+      socket.on('connect', () => {
+        socket.emit('join', state.user?._id);
+        if (state.user?.role === 'admin') socket.emit('join_admin');
+      });
+
+      socket.on('new_notification', (data) => {
+        Alert.alert('New Notification', data.title + '\n' + data.message);
+      });
+    }
+
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, [state.user]);
 
   const login = async (email: string, password: string): Promise<User> => {
     const res = await authApi.login(email, password);

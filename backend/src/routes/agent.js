@@ -230,6 +230,46 @@ async function ruleBasedAgent(messages, userId) {
       dueDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       message: 'Your next service is due',
     });
+    
+    // Send notifications
+    try {
+      const Notification = require('../models/Notification');
+      const User = require('../models/User');
+      
+      await Notification.create({
+        recipient: userId,
+        title: 'Booking Confirmed',
+        message: `Your service booking for ${new Date(scheduledDate).toLocaleDateString()} has been received.`,
+        type: 'booking',
+        link: '/user/bookings'
+      });
+
+      const assignedFranchise = await Franchise.findById(franchiseId);
+      if (assignedFranchise && assignedFranchise.owner) {
+        await Notification.create({
+          recipient: assignedFranchise.owner,
+          title: 'New Service Booking',
+          message: `A new ${serviceType} service has been booked at your franchise.`,
+          type: 'booking',
+          link: '/franchise/bookings'
+        });
+      }
+
+      const admins = await User.find({ role: 'admin' });
+      if (admins.length > 0) {
+        const adminNotifications = admins.map(admin => ({
+          recipient: admin._id,
+          title: 'Service Booking',
+          message: `A new ${serviceType} service was just booked via AI Assistant.`,
+          type: 'system',
+          link: '/admin/services'
+        }));
+        await Notification.insertMany(adminNotifications);
+      }
+    } catch (err) {
+      console.error('Failed to create notifications for agent booking', err);
+    }
+
     const populated = await Service.findById(svc._id)
       .populate('vehicle', 'registrationNumber make model')
       .populate('franchise', 'name address phone').lean();
@@ -373,6 +413,46 @@ async function executeOpenAITool(name, args, userId) {
   if (name === 'book_service_appointment') {
     const svc = await Service.create({ vehicle: args.vehicleId, owner: userId, franchise: args.franchiseId, serviceType: args.serviceType, scheduledDate: new Date(args.scheduledDate), description: args.description || '', status: 'onboarded' });
     await Reminder.create({ user: userId, vehicle: args.vehicleId, type: 'service_due', dueDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), message: 'Your next service is due' });
+    
+    // Send notifications
+    try {
+      const Notification = require('../models/Notification');
+      const User = require('../models/User');
+      
+      await Notification.create({
+        recipient: userId,
+        title: 'Booking Confirmed',
+        message: `Your service booking for ${new Date(args.scheduledDate).toLocaleDateString()} has been received.`,
+        type: 'booking',
+        link: '/user/bookings'
+      });
+
+      const assignedFranchise = await Franchise.findById(args.franchiseId);
+      if (assignedFranchise && assignedFranchise.owner) {
+        await Notification.create({
+          recipient: assignedFranchise.owner,
+          title: 'New Service Booking',
+          message: `A new ${args.serviceType} service has been booked at your franchise.`,
+          type: 'booking',
+          link: '/franchise/bookings'
+        });
+      }
+
+      const admins = await User.find({ role: 'admin' });
+      if (admins.length > 0) {
+        const adminNotifications = admins.map(admin => ({
+          recipient: admin._id,
+          title: 'Service Booking',
+          message: `A new ${args.serviceType} service was just booked via AI Assistant.`,
+          type: 'system',
+          link: '/admin/services'
+        }));
+        await Notification.insertMany(adminNotifications);
+      }
+    } catch (err) {
+      console.error('Failed to create notifications for agent booking', err);
+    }
+
     const pop = await Service.findById(svc._id).populate('vehicle', 'registrationNumber make model').populate('franchise', 'name address phone').lean();
     return JSON.stringify({ success: true, bookingId: svc._id, vehicle: `${pop.vehicle?.make} ${pop.vehicle?.model} (${pop.vehicle?.registrationNumber})`, franchise: pop.franchise?.name, franchiseCity: pop.franchise?.address?.city, franchisePhone: pop.franchise?.phone, serviceType: svc.serviceType, scheduledDate: svc.scheduledDate, status: 'onboarded' });
   }

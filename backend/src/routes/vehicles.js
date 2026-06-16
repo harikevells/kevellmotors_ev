@@ -85,12 +85,33 @@ router.post('/:id/documents', protect, upload.single('document'), async (req, re
     if (!vehicle) return res.status(404).json({ success: false, message: 'Vehicle not found' });
 
     vehicle.documents.push({
+      type: req.body.type || 'document',
       name: req.body.name || req.file.originalname,
       url: `/uploads/${req.file.filename}`,
       uploadedAt: new Date(),
     });
     await vehicle.save();
     res.json({ success: true, vehicle });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/vehicles/:id/documents/:docId — remove vehicle document
+router.delete('/:id/documents/:docId', protect, async (req, res, next) => {
+  try {
+    const vehicle = await Vehicle.findOne({ _id: req.params.id, owner: req.user._id });
+    if (!vehicle) return res.status(404).json({ success: false, message: 'Vehicle not found' });
+
+    const initialLength = vehicle.documents.length;
+    vehicle.documents = vehicle.documents.filter(doc => doc._id.toString() !== req.params.docId);
+    
+    if (vehicle.documents.length === initialLength) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    await vehicle.save();
+    res.json({ success: true, message: 'Document removed', vehicle });
   } catch (err) {
     next(err);
   }

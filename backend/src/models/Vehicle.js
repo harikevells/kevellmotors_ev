@@ -10,10 +10,11 @@ const vehicleSchema = new mongoose.Schema(
     vehicleType: { type: String, enum: ['2-wheeler', '3-wheeler', '4-wheeler'], required: true },
     batteryCapacity: { type: String },
     color: { type: String },
+    chargingType: { type: String },
     vinNumber: { type: String },
     insuranceExpiry: { type: Date },
     warrantyExpiry: { type: Date },
-    documents: [{ name: String, url: String, uploadedAt: Date }],
+    documents: [{ type: { type: String }, name: String, url: String, uploadedAt: Date }],
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

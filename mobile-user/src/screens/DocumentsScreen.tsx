@@ -1,20 +1,31 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Alert, RefreshControl, Modal,
+  Alert, RefreshControl, Modal, Image, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DocumentPicker, { types } from 'react-native-document-picker';
 import { vehicleAPI } from '../api';
+import apiClient from '../api/apiClient';
 import { Colors } from '../utils/colors';
 import Card from '../components/Card';
 import Header from '../components/Header';
 import Spinner from '../components/Spinner';
 import type { Vehicle, VehicleDocument } from '../types';
-import { FileText, Shield, Leaf, Receipt, CheckCircle, Paperclip, Car, Trash2, FolderUp } from 'lucide-react-native';
+import { FileText, Shield, Leaf, Receipt, CheckCircle, Paperclip, Car, Trash2, FolderUp, Eye, X as CloseIcon, ExternalLink } from 'lucide-react-native';
 
 const DOC_TYPES = ['rc', 'insurance', 'pollution', 'purchase', 'warranty', 'other'];
-const DOC_ICONS: Record<string, React.ElementType> = { rc: FileText, insurance: Shield, pollution: Leaf, purchase: Receipt, warranty: CheckCircle, other: Paperclip };
+const DOC_ICONS: Record<string, React.ElementType> = { rc: FileText, insurance: Shield, pollution: Leaf, purchase: Receipt, warranty: CheckCircle, other: Paperclip, document: FileText };
+
+const guessDocType = (name: string) => {
+  const lower = name.toLowerCase();
+  if (lower.includes('rc')) return 'rc';
+  if (lower.includes('insur')) return 'insurance';
+  if (lower.includes('pollut')) return 'pollution';
+  if (lower.includes('purch')) return 'purchase';
+  if (lower.includes('warrant')) return 'warranty';
+  return 'document';
+};
 
 const DocumentsScreen: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -23,6 +34,15 @@ const DocumentsScreen: React.FC = () => {
   const [uploadModal, setUploadModal] = useState<Vehicle | null>(null);
   const [docType, setDocType] = useState('rc');
   const [uploading, setUploading] = useState(false);
+  const [docViewerModal, setDocViewerModal] = useState<VehicleDocument | null>(null);
+
+  const getFullImageUrl = (url: string | null | undefined) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    const baseUrl = apiClient.defaults.baseURL?.replace('/api', '') || 'http://192.168.0.116:5001';
+    const path = url.startsWith('/') ? url : `/${url}`;
+    return `${baseUrl}${path}`;
+  };
 
   const load = useCallback(async () => {
     try {
@@ -41,12 +61,12 @@ const DocumentsScreen: React.FC = () => {
       });
       setUploading(true);
       const fd = new FormData();
+      fd.append('type', docType);
       fd.append('document', {
         uri: result.uri,
         type: result.type ?? 'application/octet-stream',
         name: result.name ?? 'document',
       } as any);
-      fd.append('type', docType);
       await vehicleAPI.uploadDocument(vehicle._id, fd);
       setUploadModal(null);
       load();
@@ -102,20 +122,32 @@ const DocumentsScreen: React.FC = () => {
                 <Text style={styles.noDocs}>No documents uploaded yet</Text>
               ) : (
                 v.documents.map((doc) => {
-                  const IconComp = DOC_ICONS[doc.type] || FileText;
+                  const docName = doc.name || doc.fileName || 'Unnamed Document';
+                  let docType = doc.type;
+                  if (!docType || docType === 'document') {
+                    docType = guessDocType(docName);
+                  }
+                  const IconComp = DOC_ICONS[docType] || FileText;
                   return (
                   <View key={doc._id} style={styles.docRow}>
                     <View style={styles.docIconContainer}>
                       <IconComp size={22} color={Colors.textSecondary} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.docType}>{doc.type}</Text>
-                      <Text style={styles.docFile} numberOfLines={1}>{doc.fileName}</Text>
+                      <Text style={styles.docType}>{docType.toUpperCase()}</Text>
+                      <Text style={styles.docFile} numberOfLines={1}>{docName}</Text>
                       <Text style={styles.docDate}>{new Date(doc.uploadedAt).toLocaleDateString('en-IN')}</Text>
                     </View>
-                    <TouchableOpacity style={styles.delBtn} onPress={() => handleDeleteDoc(v._id, doc)}>
-                      <Trash2 size={14} color={Colors.error} />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TouchableOpacity style={styles.viewBtn} onPress={() => {
+                        setDocViewerModal(doc);
+                      }}>
+                        <Eye size={16} color={Colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.delBtn} onPress={() => handleDeleteDoc(v._id, doc)}>
+                        <Trash2 size={16} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   );
                 })
@@ -165,12 +197,63 @@ const DocumentsScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={!!docViewerModal} animationType="fade" transparent={true} onRequestClose={() => setDocViewerModal(null)}>
+        <View style={styles.imageModalOverlay}>
+          <View style={styles.imageModalContent}>
+            <TouchableOpacity style={styles.imageModalClose} onPress={() => setDocViewerModal(null)}>
+              <CloseIcon size={24} color="#fff" />
+            </TouchableOpacity>
+            
+            {docViewerModal && (() => {
+              const currentDoc = docViewerModal;
+              const docUrl = currentDoc.url || currentDoc.fileUrl;
+              const docName = currentDoc.name || currentDoc.fileName || 'Document';
+              let docType = currentDoc.type;
+              if (!docType || docType === 'document') {
+                docType = guessDocType(docName);
+              }
+              const fileUrl = getFullImageUrl(docUrl);
+              const lowerName = docName.toLowerCase();
+              const lowerUrl = docUrl?.toLowerCase() || '';
+              const isImage = /\.(jpg|jpeg|png|gif|webp)$/.test(lowerName) || /\.(jpg|jpeg|png|gif|webp)$/.test(lowerUrl);
+              const extMatch = lowerName.match(/\.([a-z0-9]+)$/);
+              const ext = extMatch ? extMatch[1].toUpperCase() : 'FILE';
+              
+              return (
+                <View style={styles.sliderContainer}>
+                  <View style={styles.docViewerWrapper}>
+                    <Text style={styles.docViewerTitle}>{docType.toUpperCase()} - {docName}</Text>
+                    {!isImage ? (
+                      <View style={styles.pdfPlaceholder}>
+                        <FileText size={60} color="#fff" style={{ marginBottom: 16 }} />
+                        <Text style={styles.pdfText}>{ext} Document</Text>
+                        <Text style={styles.pdfSubtext}>This format cannot be previewed directly in the app.</Text>
+                        
+                        <TouchableOpacity 
+                          style={styles.openBtn} 
+                          onPress={() => fileUrl && Linking.openURL(fileUrl).catch(() => Alert.alert('Error', 'Cannot open this file type'))}
+                        >
+                          <ExternalLink size={20} color="#fff" />
+                          <Text style={styles.openBtnText}>Open Document</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      fileUrl && <Image source={{ uri: fileUrl }} style={styles.sliderImage} resizeMode="contain" />
+                    )}
+                  </View>
+                </View>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bgDark },
+  safe: { flex: 1, backgroundColor: Colors.bgDark, width:'100%' },
   content: { padding: 16, paddingBottom: 32 },
   empty: { color: Colors.textMuted, textAlign: 'center', padding: 16 },
   vehicleHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
@@ -200,6 +283,24 @@ const styles = StyleSheet.create({
   pickBtnDisabled: { opacity: 0.6 },
   pickBtnIcon: { fontSize: 22 },
   pickBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  viewBtn: { padding: 8, backgroundColor: 'rgba(56, 189, 248, 0.15)', borderRadius: 8, marginRight: 8 },
+  imageModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
+  imageModalContent: { width: '100%', height: '80%', justifyContent: 'center', alignItems: 'center' },
+  imageModalClose: { position: 'absolute', top: -30, right: 20, zIndex: 10, padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
+  sliderContainer: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', flexDirection: 'row' },
+  docViewerWrapper: { flex: 1, height: '100%', width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 50 },
+  docViewerTitle: { position: 'absolute', top: 20, color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', width: '100%' },
+  sliderImage: { width: '100%', height: '80%' },
+  sliderArrowLeft: { position: 'absolute', left: 10, zIndex: 10, padding: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 },
+  sliderArrowRight: { position: 'absolute', right: 10, zIndex: 10, padding: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 },
+  sliderDots: { position: 'absolute', bottom: 20, flexDirection: 'row', gap: 8 },
+  sliderDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.4)' },
+  sliderDotActive: { backgroundColor: '#fff', width: 10, height: 10, borderRadius: 5 },
+  pdfPlaceholder: { alignItems: 'center', justifyContent: 'center', padding: 20 },
+  pdfText: { color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 12 },
+  pdfSubtext: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 8, textAlign: 'center', marginBottom: 24 },
+  openBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
+  openBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });
 
 export default DocumentsScreen;

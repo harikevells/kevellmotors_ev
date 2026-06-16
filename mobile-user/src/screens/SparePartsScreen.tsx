@@ -25,6 +25,8 @@ const SparePartsScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [orderModal, setOrderModal] = useState<SparePart | null>(null);
+  const [imageModal, setImageModal] = useState<SparePart | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [qty, setQty] = useState('1');
   const [address, setAddress] = useState('');
   const [appliedSubscription, setAppliedSubscription] = useState('');
@@ -39,6 +41,28 @@ const SparePartsScreen: React.FC = () => {
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
+
+  const getFirstImage = (p: SparePart) => {
+    let url = null;
+    if (p.images && p.images.length > 0) url = p.images[0];
+    else if (p.image) url = p.image;
+    return getFullImageUrl(url);
+  };
+
+  const getFullImageUrl = (url: string | null | undefined) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    const baseUrl = apiClient.defaults.baseURL?.replace('/api', '') || 'http://192.168.0.116:5001';
+    const path = url.startsWith('/') ? url : `/${url}`;
+    return `${baseUrl}${path}`;
+  };
+
+  const getAllImages = (p: SparePart) => {
+    let urls: string[] = [];
+    if (p.images && p.images.length > 0) urls = p.images;
+    else if (p.image) urls = [p.image];
+    return urls.map(url => getFullImageUrl(url)).filter(Boolean) as string[];
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -134,13 +158,19 @@ const SparePartsScreen: React.FC = () => {
               filteredParts.map((p) => (
                 <Card key={p._id} style={styles.partCard}>
                   <View style={styles.partRow}>
-                    <View style={styles.partIcon}>
-                      {p.image ? (
-                        <Image source={{ uri: p.image }} style={{ width: '100%', height: '100%', borderRadius: 12 }} />
+                    <TouchableOpacity style={styles.partIcon} onPress={() => {
+                      const imgs = getAllImages(p);
+                      if (imgs.length > 0) {
+                        setImageModal(p);
+                        setCurrentImageIndex(0);
+                      }
+                    }} activeOpacity={0.8}>
+                      {getFirstImage(p) ? (
+                        <Image source={{ uri: getFirstImage(p)! }} style={{ width: '100%', height: '100%', borderRadius: 12 }} />
                       ) : (
                         <Settings size={22} color={Colors.primaryLight} />
                       )}
-                    </View>
+                    </TouchableOpacity>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.partName}>{p.name}</Text>
                       {p.brand && <Text style={styles.partMeta}>{p.brand}</Text>}
@@ -305,6 +335,51 @@ const SparePartsScreen: React.FC = () => {
               </>
             )}
           </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal visible={!!imageModal} animationType="fade" transparent={true} onRequestClose={() => setImageModal(null)}>
+        <View style={styles.imageModalOverlay}>
+          <View style={styles.imageModalContent}>
+            <TouchableOpacity style={styles.imageModalClose} onPress={() => setImageModal(null)}>
+              <CloseIcon size={24} color="#fff" />
+            </TouchableOpacity>
+
+            {imageModal && (() => {
+              const imgs = getAllImages(imageModal);
+              return (
+                <View style={styles.sliderContainer}>
+                  {imgs.length > 1 && (
+                    <TouchableOpacity
+                      style={styles.sliderArrowLeft}
+                      onPress={() => setCurrentImageIndex(prev => prev === 0 ? imgs.length - 1 : prev - 1)}
+                    >
+                      <ChevronLeft size={30} color="#fff" />
+                    </TouchableOpacity>
+                  )}
+
+                  <Image source={{ uri: imgs[currentImageIndex] }} style={styles.sliderImage} resizeMode="contain" />
+
+                  {imgs.length > 1 && (
+                    <TouchableOpacity
+                      style={styles.sliderArrowRight}
+                      onPress={() => setCurrentImageIndex(prev => prev === imgs.length - 1 ? 0 : prev + 1)}
+                    >
+                      <ChevronRight size={30} color="#fff" />
+                    </TouchableOpacity>
+                  )}
+
+                  {imgs.length > 1 && (
+                    <View style={styles.sliderDots}>
+                      {imgs.map((_, idx) => (
+                        <View key={idx} style={[styles.sliderDot, currentImageIndex === idx && styles.sliderDotActive]} />
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
+          </View>
         </View>
       </Modal>
     </SafeAreaView>

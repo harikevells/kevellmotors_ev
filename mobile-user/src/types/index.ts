@@ -22,9 +22,11 @@ export interface Vehicle {
 
 export interface VehicleDocument {
   _id: string;
-  type: string;
-  fileName: string;
-  fileUrl: string;
+  type?: string;
+  name?: string;
+  fileName?: string;
+  url?: string;
+  fileUrl?: string;
   uploadedAt: string;
 }
 
@@ -109,6 +111,7 @@ export interface SparePart {
   brand?: string;
   partNumber?: string;
   image?: string;
+  images?: string[];
 }
 
 export interface PartOrder {

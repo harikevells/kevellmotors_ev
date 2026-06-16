@@ -25,7 +25,7 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, showBack = true, right
             <ChevronLeft size={28} color={Colors.textPrimary} />
           </TouchableOpacity>
         )}
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  left: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { justifyContent: 'center', padding: 4 },
   title: { fontSize: 17, fontWeight: '700', color: Colors.textPrimary },
   subtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },

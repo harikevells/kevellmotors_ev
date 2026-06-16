@@ -9,11 +9,11 @@ const CAT_ICONS = { battery: '🔋', motor: '⚙️', controller: '🖥️', cha
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 const STATUS_STYLES = {
-  pending:   { bg: 'rgba(251,146,60,.15)',  color: '#fb923c' },
+  pending: { bg: 'rgba(251,146,60,.15)', color: '#fb923c' },
   confirmed: { bg: 'rgba(129,140,248,.15)', color: '#818cf8' },
-  shipped:   { bg: 'rgba(6,182,212,.15)',   color: '#22d3ee' },
-  delivered: { bg: 'rgba(74,222,128,.15)',  color: '#4ade80' },
-  cancelled: { bg: 'rgba(239,68,68,.15)',   color: '#f87171' },
+  shipped: { bg: 'rgba(6,182,212,.15)', color: '#22d3ee' },
+  delivered: { bg: 'rgba(74,222,128,.15)', color: '#4ade80' },
+  cancelled: { bg: 'rgba(239,68,68,.15)', color: '#f87171' },
 };
 
 const EMPTY_FORM = { name: '', partNumber: '', category: 'other', description: '', price: '', stock: '', brand: '', warranty: '', isAvailable: true, images: [] };

@@ -44,6 +44,11 @@ export default function FranchiseProfilePage() {
   const [liveReviews, setLiveReviews] = useState([]);
   const [liveFeedbacks, setLiveFeedbacks] = useState([]);
   const { user } = useAuth();
+  const [newSchedule, setNewSchedule] = useState({
+    type: 'overall', startDate: '', endDate: '', days: ['monday','tuesday','wednesday','thursday','friday'],
+    open: '09:00', close: '18:00', isClosed: false, capacity: 10
+  });
+  const [editIndex, setEditIndex] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -54,8 +59,19 @@ export default function FranchiseProfilePage() {
         setLiveReviews(feedbackRes.data.reviews || []);
         setLiveFeedbacks(feedbackRes.data.feedbacks || []);
         const r = profileRes.data.franchise;
-        // Map the new 'schedules' schema to the simple UI
-        const mainSchedule = r.schedules?.[0] || {};
+        let initialSchedules = r.schedules || [];
+        if (initialSchedules.length === 0 && r.workingHours) {
+          initialSchedules = [{
+            type: 'overall',
+            startDate: '',
+            endDate: '',
+            days: r.availableDays || ['monday','tuesday','wednesday','thursday','friday'],
+            open: r.workingHours.open || '09:00',
+            close: r.workingHours.close || '18:00',
+            isClosed: false,
+            capacity: r.capacity || 10
+          }];
+        }
         setForm({
           name: r.name || '',
           email: r.email || '',
@@ -69,11 +85,7 @@ export default function FranchiseProfilePage() {
             state:   r.address?.state   || '',
             pincode: r.address?.pincode || '',
           },
-          workingHours: {
-            open:  mainSchedule.open  || '09:00',
-            close: mainSchedule.close || '18:00',
-          },
-          availableDays: mainSchedule.days || ['monday','tuesday','wednesday','thursday','friday'],
+          schedules: initialSchedules,
           lat: r.location?.coordinates?.[1]?.toString() || '',
           lng: r.location?.coordinates?.[0]?.toString() || '',
           pickupDropService: !!r.pickupDropService,
@@ -91,29 +103,36 @@ export default function FranchiseProfilePage() {
 
   const set    = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setAddr = (k, v) => setForm((f) => ({ ...f, address: { ...f.address, [k]: v } }));
-  const setHrs  = (k, v) => setForm((f) => ({ ...f, workingHours: { ...f.workingHours, [k]: v } }));
-  const toggleDay = (day) => setForm((f) => ({
-    ...f,
-    availableDays: f.availableDays?.includes(day)
-      ? f.availableDays.filter((d) => d !== day)
-      : [...(f.availableDays || []), day],
-  }));
 
   const ALL_DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
   const DAY_ABBR = { monday:'Mon', tuesday:'Tue', wednesday:'Wed', thursday:'Thu', friday:'Fri', saturday:'Sat', sunday:'Sun' };
 
+  const toggleNewScheduleDay = (day) => setNewSchedule(prev => ({ ...prev, days: prev.days.includes(day) ? prev.days.filter(d => d !== day) : [...prev.days, day] }));
+
+  const handleEditSlot = (i) => {
+    const sch = form.schedules[i];
+    setNewSchedule({
+      type: sch.type || 'overall',
+      startDate: sch.startDate || '',
+      endDate: sch.endDate || sch.startDate || '',
+      days: sch.days || [],
+      open: sch.open || '09:00',
+      close: sch.close || '18:00',
+      isClosed: sch.isClosed || false,
+      capacity: sch.capacity || ''
+    });
+    setEditIndex(i);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (editIndex !== null) {
+      alert("You are currently editing a schedule slot. Please click '✓ Update Slot' (or 'Cancel Edit') in the Configure Slots section before saving the profile.");
+      return;
+    }
     setSaving(true); setError(''); setSuccess('');
     try {
       const payload = { ...form };
-      // Map simple UI back to the new 'schedules' schema
-      payload.schedules = [{
-        type: 'overall',
-        days: form.availableDays,
-        open: form.workingHours.open,
-        close: form.workingHours.close
-      }];
       await franchisePortalAPI.updateProfile(payload);
       setSuccess('Profile updated successfully!');
     } catch (err) {
@@ -283,38 +302,234 @@ export default function FranchiseProfilePage() {
             </div>
           </div>
 
-          {/* Working hours */}
+          {/* Availability & Capacity Settings */}
           <div style={card}>
-            <div style={ch}><h3 style={{ margin: 0, fontWeight: 600, color: '#e2e8f0', fontSize: '1rem' }}>Working Hours &amp; Availability</h3></div>
+            <div style={ch}><h3 style={{ margin: 0, fontWeight: 600, color: '#e2e8f0', fontSize: '1rem' }}>Availability &amp; Capacity Settings</h3></div>
             <div style={{ padding: '1.25rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', maxWidth: '400px', marginBottom: '1rem' }}>
-                <div>
-                  <label style={lbl}>Opens at</label>
-                  <input type="time" style={inp} value={form.workingHours.open} onChange={(e) => setHrs('open', e.target.value)} />
+              <p style={{ margin: '0 0 1rem', color: '#6b7280', fontSize: '.78rem' }}>
+                Define your service schedule and vehicle capacity below.
+              </p>
+              
+              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'stretch', flexWrap: 'wrap' }}>
+                {/* Left Column: Generate Slots */}
+                <div style={{ flex: '1 1 400px', background: 'linear-gradient(145deg, #0d0e2b, #111330)', borderRadius: '16px', padding: '1.75rem', border: '1px solid rgba(6,182,212,0.15)', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.5rem' }}>
+                    <span style={{ fontSize: '1.4rem' }}>⚙️</span>
+                    <h4 style={{ color: '#06b6d4', margin: 0, fontSize: '1.15rem', fontWeight: 800, letterSpacing: '0.5px' }}>Configure Slots</h4>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
+                    <div>
+                      <label style={lbl}>Start Date</label>
+                      <input type="date" style={inp} value={newSchedule.startDate} onChange={(e) => setNewSchedule(prev => ({ ...prev, startDate: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={lbl}>End Date</label>
+                      <input type="date" style={inp} value={newSchedule.endDate} onChange={(e) => setNewSchedule(prev => ({ ...prev, endDate: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <label style={lbl}>Applicable Days</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {ALL_DAYS.map(day => {
+                        const checked = newSchedule.days.includes(day);
+                        return (
+                          <button key={day} type="button" onClick={() => toggleNewScheduleDay(day)}
+                            style={{
+                              background: checked ? 'rgba(6,182,212,0.15)' : 'rgba(255,255,255,0.03)',
+                              border: checked ? '1px solid rgba(6,182,212,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                              color: checked ? '#00e5ff' : '#9ca3af',
+                              borderRadius: '8px', padding: '0.5rem 0.8rem', fontSize: '0.78rem', fontWeight: 600,
+                              display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', transition: 'all 0.2s',
+                              boxShadow: checked ? '0 0 10px rgba(6,182,212,0.1)' : 'none'
+                            }}>
+                            <span style={{ fontSize: '0.9rem', opacity: checked ? 1 : 0.4 }}>{checked ? '✓' : '+'}</span> {DAY_ABBR[day]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', marginBottom: '1.75rem' }}>
+                    <div>
+                      <label style={lbl}>Start Time</label>
+                      <input type="time" style={inp} value={newSchedule.open} onChange={(e) => setNewSchedule(prev => ({ ...prev, open: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={lbl}>End Time</label>
+                      <input type="time" style={inp} value={newSchedule.close} onChange={(e) => setNewSchedule(prev => ({ ...prev, close: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={lbl}>Capacity</label>
+                      <input type="number" min="1" style={{...inp, color: '#fff'}} value={newSchedule.capacity} onChange={(e) => setNewSchedule({...newSchedule, capacity: e.target.value ? Number(e.target.value) : ''})} placeholder={form.capacity || 10} />
+                    </div>
+                  </div>
+
+                  <button type="button" onClick={() => {
+                    if (newSchedule.days.length === 0) return alert('Select at least one day');
+                    if (!newSchedule.open || !newSchedule.close) return alert('Select open and close times');
+                    
+                    const newArr = [...(form.schedules || [])];
+                    let dupCount = 0;
+                    const generated = [];
+
+                    if (newSchedule.startDate && newSchedule.endDate) {
+                      const start = new Date(newSchedule.startDate + 'T00:00:00');
+                      const end = new Date(newSchedule.endDate + 'T00:00:00');
+                      if (start > end) return alert('End Date must be after Start Date');
+                      
+                      const dayMap = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' };
+                      let current = new Date(start);
+                      let matchCount = 0;
+
+                      while (current <= end) {
+                        const dayStr = dayMap[current.getDay()];
+                        if (newSchedule.days.includes(dayStr)) {
+                          matchCount++;
+                          const localDateString = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+                          
+                          const isOverlap = newArr.some((ex, idx) => {
+                            if (idx === editIndex) return false;
+                            if (ex.startDate === localDateString || (ex.type === 'overall' && ex.days.includes(dayStr))) {
+                              return (newSchedule.open < ex.close && newSchedule.close > ex.open);
+                            }
+                            return false;
+                          });
+
+                          if (isOverlap) {
+                            dupCount++;
+                          } else {
+                            generated.push({
+                              type: 'single_date',
+                              startDate: localDateString,
+                              endDate: '',
+                              days: [dayStr],
+                              open: newSchedule.open,
+                              close: newSchedule.close,
+                              capacity: newSchedule.capacity || form.capacity || 10,
+                              isClosed: false
+                            });
+                          }
+                        }
+                        current.setDate(current.getDate() + 1);
+                      }
+                      if (matchCount === 0) return alert('No matching days found in the selected date range.');
+                      if (generated.length === 0 && dupCount > 0) return alert(`All ${dupCount} selected slots conflict with existing schedules!`);
+                      if (dupCount > 0) alert(`Skipped ${dupCount} conflicting slots.`);
+                    } else {
+                      newSchedule.days.forEach(dayStr => {
+                        const isOverlap = newArr.some((ex, idx) => {
+                          if (idx === editIndex) return false;
+                          if ((ex.startDate === '' || ex.type === 'overall') && ex.days.includes(dayStr)) {
+                            return (newSchedule.open < ex.close && newSchedule.close > ex.open);
+                          }
+                          return false;
+                        });
+
+                        if (isOverlap) {
+                          dupCount++;
+                        } else {
+                          generated.push({
+                            type: 'overall',
+                            startDate: '',
+                            endDate: '',
+                            days: [dayStr],
+                            open: newSchedule.open,
+                            close: newSchedule.close,
+                            capacity: newSchedule.capacity || form.capacity || 10,
+                            isClosed: false
+                          });
+                        }
+                      });
+                      if (generated.length === 0 && dupCount > 0) return alert(`All selected days conflict with existing schedules!`);
+                      if (dupCount > 0) alert(`Skipped ${dupCount} conflicting days.`);
+                    }
+
+                    if (editIndex !== null) {
+                      newArr.splice(editIndex, 1, ...generated);
+                      setEditIndex(null);
+                    } else {
+                      newArr.push(...generated);
+                    }
+
+                    set('schedules', newArr);
+                    setNewSchedule({ type: 'overall', startDate: '', endDate: '', days: ['monday','tuesday','wednesday','thursday','friday'], open: '09:00', close: '18:00', isClosed: false, capacity: form.capacity || 10 });
+                  }} style={{ width: '100%', background: 'linear-gradient(90deg, #06b6d4, #3b82f6)', color: '#fff', border: 'none', padding: '0.9rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', boxShadow: '0 4px 15px rgba(6,182,212,0.3)', transition: 'transform 0.1s' }}
+                     onMouseDown={e => e.currentTarget.style.transform = 'scale(0.98)'}
+                     onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                     onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                    <span style={{ fontSize: '1.1rem' }}>{editIndex !== null ? '✓' : '+'}</span> {editIndex !== null ? 'Update Slot' : 'Add Schedule Rule'}
+                  </button>
+                  
+                  {editIndex !== null && (
+                    <button type="button" onClick={() => {
+                      setEditIndex(null);
+                      setNewSchedule({ type: 'overall', startDate: '', endDate: '', days: ['monday','tuesday','wednesday','thursday','friday'], open: '09:00', close: '18:00', isClosed: false });
+                    }} style={{ width: '100%', background: 'transparent', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)', padding: '0.6rem', borderRadius: '10px', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                      Cancel Edit
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label style={lbl}>Closes at</label>
-                  <input type="time" style={inp} value={form.workingHours.close} onChange={(e) => setHrs('close', e.target.value)} />
+
+                {/* Right Column: All Scheduled Slots */}
+                <div style={{ flex: '1 1 400px', background: 'rgba(0,0,0,0.25)', borderRadius: '16px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '450px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <h4 style={{ color: '#e2e8f0', margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>Active Schedules</h4>
+                    <span style={{ background: 'rgba(6,182,212,0.15)', color: '#00e5ff', padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid rgba(6,182,212,0.3)' }}>{form.schedules?.length || 0} Rules</span>
+                  </div>
+
+                  <div style={{ flex: 1, overflowY: 'auto', maxHeight: '400px', display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingRight: '0.5rem' }}>
+                    {form.schedules?.map((sch, i) => (
+                      <div key={i} style={{ background: editIndex === i ? 'rgba(6,182,212,0.08)' : 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))', borderRadius: '12px', padding: '1.25rem', border: editIndex === i ? '1px solid rgba(6,182,212,0.4)' : '1px solid rgba(255,255,255,0.05)', borderLeft: editIndex === i ? '4px solid #06b6d4' : '4px solid #818cf8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                           onMouseOver={e => { if (editIndex !== i) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                           onMouseOut={e => { if (editIndex !== i) e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))' }}>
+                        <div>
+                          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                            {sch.startDate && <span style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontSize: '0.65rem', padding: '3px 8px', borderRadius: '6px', fontWeight: 700, border: '1px solid rgba(59,130,246,0.3)' }}>{sch.startDate} {sch.endDate ? `to ${sch.endDate}` : ''}</span>}
+                            {(sch.days || []).slice(0,3).map(d => (
+                               <span key={d} style={{ background: 'rgba(255,255,255,0.06)', color: '#cbd5e1', fontSize: '0.65rem', padding: '3px 8px', borderRadius: '6px', fontWeight: 600 }}>{DAY_ABBR[d].toUpperCase()}</span>
+                            ))}
+                            {(sch.days?.length > 3) && <span style={{ background: 'rgba(255,255,255,0.06)', color: '#cbd5e1', fontSize: '0.65rem', padding: '3px 8px', borderRadius: '6px', fontWeight: 600 }}>+{sch.days.length - 3}</span>}
+                          </div>
+                          <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.4rem', letterSpacing: '0.5px' }}>
+                            {sch.open} <span style={{ color: '#64748b', fontWeight: 400 }}>—</span> {sch.close}
+                          </div>
+                          <div style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 500 }}>
+                            <span>Cap:</span> <span style={{ color: '#fff', fontWeight: 600 }}>{sch.capacity || form.capacity || 10}</span> <span style={{ margin: '0 6px', color: '#334155' }}>|</span> <span>Booked:</span> <span style={{ color: '#fff', fontWeight: 600 }}>0</span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button type="button" onClick={() => handleEditSlot(i)} style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                  onMouseOver={e => e.currentTarget.style.background = 'rgba(59,130,246,0.2)'}
+                                  onMouseOut={e => e.currentTarget.style.background = 'rgba(59,130,246,0.1)'}>
+                            ✏️
+                          </button>
+                          <button type="button" onClick={() => {
+                            if (editIndex === i) {
+                              setEditIndex(null);
+                              setNewSchedule({ type: 'overall', startDate: '', endDate: '', days: ['monday','tuesday','wednesday','thursday','friday'], open: '09:00', close: '18:00', isClosed: false, capacity: form.capacity || 10 });
+                            }
+                            if (editIndex !== null && i < editIndex) setEditIndex(editIndex - 1);
+                            set('schedules', form.schedules.filter((_, idx) => idx !== i));
+                          }} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                  onMouseOver={e => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'}
+                                  onMouseOut={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}>
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {(!form.schedules || form.schedules.length === 0) && (
+                      <div style={{ color: '#64748b', textAlign: 'center', marginTop: '3rem', fontSize: '0.85rem', fontWeight: 500 }}>
+                        <div style={{ fontSize: '2rem', marginBottom: '0.5rem', opacity: 0.5 }}>🗓️</div>
+                        No schedules configured yet.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div>
-                <label style={lbl}>Available Days</label>
-                <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginTop: '.35rem' }}>
-                  {ALL_DAYS.map((day) => {
-                    const checked = form.availableDays?.includes(day);
-                    return (
-                      <button key={day} type="button" onClick={() => toggleDay(day)} style={{
-                        padding: '.35rem .75rem', borderRadius: 8, fontSize: '.82rem',
-                        fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize',
-                        border: `1.5px solid ${checked ? '#1a6ef7' : 'rgba(255,255,255,0.15)'}`,
-                        background: checked ? 'rgba(26,110,247,0.2)' : 'rgba(255,255,255,0.05)',
-                        color: checked ? '#1a6ef7' : '#6b7280',
-                        transition: 'all .15s',
-                      }}>{DAY_ABBR[day]}</button>
-                    );
-                  })}
-                </div>
-              </div>
+
               <div style={{ marginTop: '1.25rem' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '.75rem', cursor: 'pointer', background: 'rgba(26,110,247,0.1)', padding: '1rem', borderRadius: 10, border: '1px solid rgba(26,110,247,0.2)' }}>
                   <input type="checkbox" checked={form.pickupDropService} onChange={(e) => set('pickupDropService', e.target.checked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />

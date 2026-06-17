@@ -12,6 +12,7 @@ import Header from '../components/Header';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
 import type { SparePart, PartOrder, Subscription } from '../types';
+import { BASE_URL } from '../api/apiClient';
 
 const CATEGORIES = ['All', 'battery', 'motor', 'charger', 'tyre', 'brake', 'suspension', 'body', 'accessory', 'other'];
 
@@ -52,7 +53,7 @@ const SparePartsScreen: React.FC = () => {
   const getFullImageUrl = (url: string | null | undefined) => {
     if (!url) return null;
     if (url.startsWith('http')) return url;
-    const baseUrl = apiClient.defaults.baseURL?.replace('/api', '') || 'http://192.168.0.116:5001';
+    const baseUrl = BASE_URL.replace('/api', '');
     const path = url.startsWith('/') ? url : `/${url}`;
     return `${baseUrl}${path}`;
   };

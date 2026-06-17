@@ -118,7 +118,11 @@ const ServicesScreen: React.FC = () => {
     }
     setSaving(true);
     try {
-      await serviceAPI.create(form);
+      const payload: any = { ...form };
+      if (!payload.appliedSubscription) {
+        delete payload.appliedSubscription;
+      }
+      await serviceAPI.create(payload);
       setBookModal(false);
       setForm({ vehicle: '', serviceType: 'general', description: '', franchise: '', scheduledDate: '', pickupRequested: false, appliedSubscription: '' });
       load();
@@ -226,37 +230,7 @@ const ServicesScreen: React.FC = () => {
             {form.vehicle ? (() => {
               const activeSubs = subscriptions.filter(s => s.vehicle?._id === form.vehicle);
               if (activeSubs.length === 0) {
-                const vehicleObj = vehicles.find(v => v._id === form.vehicle);
-                if (!vehicleObj) return null;
-                const brandPlans = plans.filter(p => p.isActive && (!p.targetBrand || p.targetBrand === 'All' || p.targetBrand.toLowerCase() === vehicleObj.make.toLowerCase()));
-                if (brandPlans.length === 0) return null;
-
-                return (
-                  <View style={{ marginTop: 14 }}>
-                    <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Available Plans for {vehicleObj.make}</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16 }}>
-                      {brandPlans.map(plan => (
-                        <TouchableOpacity
-                          key={plan._id}
-                          style={styles.planCardSmall}
-                          activeOpacity={0.8}
-                          onPress={() => handleSubscribe(plan, vehicleObj)}
-                        >
-                          {plan.badge ? <View style={styles.planBadge}><Text style={styles.planBadgeText}>{plan.badge}</Text></View> : null}
-                          <Text style={styles.planTitleSmall}>{plan.name}</Text>
-                          {plan.serviceDiscount ? (
-                            <Text style={{ color: Colors.success, fontSize: 10, fontWeight: '700', marginTop: 2 }}>{plan.serviceDiscount}% Service Off</Text>
-                          ) : null}
-                          <Text style={styles.planPriceSmall}>₹{plan.amount?.toLocaleString('en-IN')}</Text>
-                          <Text style={styles.planMetaSmall}>{plan.duration} days · {plan.services} services</Text>
-                          <View style={styles.planBtnSmall}>
-                            <Text style={styles.planBtnTextSmall}>Subscribe</Text>
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                );
+                return null;
               }
 
               return (
